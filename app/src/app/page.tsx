@@ -284,6 +284,9 @@ export default function HomePage() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftContent, setDraftContent] = useState<string>('');
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftStep, setDraftStep] = useState<'setup' | 'result'>('setup');
+  const [templateType, setTemplateType] = useState<'technical' | 'business' | 'simple'>('technical');
+  const [rfpContext, setRfpContext] = useState<string>('');
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -400,26 +403,40 @@ export default function HomePage() {
     }
   };
 
-  // 초안 작성 핸들러
-  const handleGenerateDraft = async (item: BidItem) => {
+  // 초안 설정 모달 열기 (1단계)
+  const openDraftSetup = (item: BidItem) => {
     setDraftItem(item);
+    setDraftStep('setup');
+    setDraftContent('');
+    setDraftError(null);
+    setDraftLoading(false);
+    setTemplateType('technical');
+    setRfpContext('');
+    setSelectedItem(null); // 상세 모달 닫기
+  };
+
+  // 초안 생성 핸들러 (2단계로 전환)
+  const handleGenerateDraft = async () => {
+    if (!draftItem) return;
+    setDraftStep('result');
     setDraftLoading(true);
     setDraftContent('');
     setDraftError(null);
-    setSelectedItem(null); // 상세 모달 닫기
 
     try {
       const res = await fetch('/api/generate-draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: item.title,
-          organization: item.organization,
-          demandOrg: item.demandOrg,
-          bidMethod: item.bidMethod,
-          contractMethod: item.contractMethod,
-          estimatedPrice: item.estimatedPrice ? formatPrice(item.estimatedPrice) : undefined,
-          bidEndDt: item.bidEndDt ? formatDisplayDate(item.bidEndDt) : undefined,
+          title: draftItem.title,
+          organization: draftItem.organization,
+          demandOrg: draftItem.demandOrg,
+          bidMethod: draftItem.bidMethod,
+          contractMethod: draftItem.contractMethod,
+          estimatedPrice: draftItem.estimatedPrice ? formatPrice(draftItem.estimatedPrice) : undefined,
+          bidEndDt: draftItem.bidEndDt ? formatDisplayDate(draftItem.bidEndDt) : undefined,
+          rfpContext,
+          templateType,
         }),
       });
 
@@ -443,6 +460,8 @@ export default function HomePage() {
     setDraftContent('');
     setDraftError(null);
     setDraftLoading(false);
+    setDraftStep('setup');
+    setRfpContext('');
   };
 
   const copyDraft = () => {
@@ -674,7 +693,7 @@ export default function HomePage() {
                 <div className="bid-card-actions" onClick={(e) => e.stopPropagation()}>
                   <button
                     className="btn btn-draft btn-sm"
-                    onClick={() => handleGenerateDraft(item)}
+                    onClick={() => openDraftSetup(item)}
                   >
                     ✍️ 초안 작성
                   </button>
@@ -795,7 +814,7 @@ export default function HomePage() {
               )}
               <button
                 className="btn btn-draft"
-                onClick={() => handleGenerateDraft(selectedItem)}
+                onClick={() => openDraftSetup(selectedItem)}
               >
                 ✍️ 초안 작성하기
               </button>
@@ -815,7 +834,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Draft Modal */}
+      {/* Draft Modal — 2단계 */}
       {draftItem && (
         <div className="modal-overlay" onClick={closeDraftModal}>
           <div className="draft-modal" onClick={(e) => e.stopPropagation()}>
@@ -832,49 +851,138 @@ export default function HomePage() {
               </p>
             </div>
 
-            {draftLoading && (
-              <div className="draft-loading">
-                <div className="draft-spinner">
-                  <div className="spinner" />
+            {/* ── 1단계: 설정 ── */}
+            {draftStep === 'setup' && (
+              <div className="draft-setup">
+                {/* 양식 선택 */}
+                <div className="draft-section">
+                  <h3 className="draft-section-title">📋 제안서 양식 선택</h3>
+                  <div className="template-cards">
+                    <button
+                      className={`template-card ${templateType === 'technical' ? 'active' : ''}`}
+                      onClick={() => setTemplateType('technical')}
+                    >
+                      <span className="template-icon">🔧</span>
+                      <span className="template-name">기술제안서</span>
+                      <span className="template-desc">기술 역량·방법론·아키텍처 중심</span>
+                    </button>
+                    <button
+                      className={`template-card ${templateType === 'business' ? 'active' : ''}`}
+                      onClick={() => setTemplateType('business')}
+                    >
+                      <span className="template-icon">📊</span>
+                      <span className="template-name">사업계획서</span>
+                      <span className="template-desc">사업 타당성·ROI·전략 중심</span>
+                    </button>
+                    <button
+                      className={`template-card ${templateType === 'simple' ? 'active' : ''}`}
+                      onClick={() => setTemplateType('simple')}
+                    >
+                      <span className="template-icon">📝</span>
+                      <span className="template-name">간이제안서</span>
+                      <span className="template-desc">소규모 사업용 간결한 양식</span>
+                    </button>
+                  </div>
                 </div>
-                <p className="draft-loading-text">
-                  🤖 Gemini AI가 제안서 초안을 작성하고 있습니다...
-                </p>
-                <p className="draft-loading-sub">
-                  공고 내용을 분석하여 맞춤형 초안을 생성합니다 (약 10~20초 소요)
-                </p>
+
+                {/* RFP 입력 */}
+                <div className="draft-section">
+                  <h3 className="draft-section-title">
+                    📄 제안요청서(RFP) / 요구사항 입력
+                    <span className="optional-badge">선택사항</span>
+                  </h3>
+                  <p className="draft-section-hint">
+                    공고 내 제안요청서, 과업내용서, 평가기준 등을 붙여넣으면<br />
+                    AI가 해당 내용을 반영하여 더 정확한 초안을 생성합니다.
+                  </p>
+                  <textarea
+                    className="rfp-textarea"
+                    placeholder="여기에 RFP, 과업내용서, 평가기준, 요구사항 등을 붙여넣으세요...&#10;&#10;예시:&#10;- 평가항목: 기술 이해도(30점), 수행방안(40점), 프로젝트 관리(30점)&#10;- 사업 범위: AI 기반 민원상담 챗봇 개발&#10;- 요구 기능: 자연어 처리, 다국어 지원, 관리자 대시보드"
+                    value={rfpContext}
+                    onChange={(e) => setRfpContext(e.target.value)}
+                    rows={8}
+                  />
+                  {rfpContext && (
+                    <div className="rfp-char-count">
+                      {rfpContext.length.toLocaleString()}/10,000자
+                    </div>
+                  )}
+                </div>
+
+                {/* 생성 버튼 */}
+                <div className="draft-setup-actions">
+                  <button className="btn btn-secondary" onClick={closeDraftModal}>
+                    취소
+                  </button>
+                  <button className="btn btn-draft btn-generate" onClick={handleGenerateDraft}>
+                    🤖 AI 초안 생성하기
+                  </button>
+                </div>
               </div>
             )}
 
-            {draftError && (
-              <div className="draft-error">
-                <span className="error-icon">❌</span>
-                <div>
-                  <strong>초안 생성 실패</strong>
-                  <p>{draftError}</p>
-                </div>
-              </div>
-            )}
-
-            {draftContent && (
+            {/* ── 2단계: 결과 ── */}
+            {draftStep === 'result' && (
               <>
-                <div className="draft-actions-top">
-                  <button className="btn btn-primary btn-sm" onClick={copyDraft}>
-                    📋 초안 복사
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => handleGenerateDraft(draftItem)}
-                  >
-                    🔄 다시 생성
-                  </button>
-                </div>
-                <div className="draft-content">
-                  <div className="draft-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(draftContent) }} />
-                </div>
-                <div className="draft-disclaimer">
-                  ⚠️ AI가 생성한 초안입니다. 실제 제출 전 반드시 내용을 검토하고 수정하세요.
-                </div>
+                {draftLoading && (
+                  <div className="draft-loading">
+                    <div className="draft-spinner">
+                      <div className="spinner" />
+                    </div>
+                    <p className="draft-loading-text">
+                      🤖 Gemini AI가 {templateType === 'technical' ? '기술제안서' : templateType === 'business' ? '사업계획서' : '간이제안서'} 초안을 작성하고 있습니다...
+                    </p>
+                    <p className="draft-loading-sub">
+                      {rfpContext ? 'RFP 내용을 분석하여 맞춤형 초안을 생성합니다' : '공고 내용을 분석하여 초안을 생성합니다'} (약 10~30초 소요)
+                    </p>
+                  </div>
+                )}
+
+                {draftError && (
+                  <div className="draft-error">
+                    <span className="error-icon">❌</span>
+                    <div>
+                      <strong>초안 생성 실패</strong>
+                      <p>{draftError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {draftContent && (
+                  <>
+                    <div className="draft-actions-top">
+                      <button className="btn btn-primary btn-sm" onClick={copyDraft}>
+                        📋 초안 복사
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setDraftStep('setup')}
+                      >
+                        ⚙️ 설정 변경
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleGenerateDraft}
+                      >
+                        🔄 다시 생성
+                      </button>
+                    </div>
+                    <div className="draft-content">
+                      <div className="draft-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(draftContent) }} />
+                    </div>
+                    <div className="draft-disclaimer">
+                      ⚠️ AI가 생성한 초안입니다. 실제 제출 전 반드시 내용을 검토하고 수정하세요.
+                    </div>
+                  </>
+                )}
+
+                {(draftError || (!draftLoading && !draftContent)) && (
+                  <div className="draft-setup-actions">
+                    <button className="btn btn-secondary" onClick={() => setDraftStep('setup')}>
+                      ← 설정으로 돌아가기
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

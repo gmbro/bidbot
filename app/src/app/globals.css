@@ -1381,4 +1381,171 @@ body {
   .bid-card-actions {
     justify-content: flex-start;
   }
+
+  .template-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-setup-actions {
+    flex-direction: column;
+  }
+
+  .draft-setup-actions .btn {
+    width: 100%;
+  }
+}
+
+/* ==========================
+   Draft Setup — 1단계 설정
+   ========================== */
+.draft-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.draft-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.draft-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.optional-badge {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.draft-section-hint {
+  font-size: 0.83rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ==========================
+   Template Selection Cards
+   ========================== */
+.template-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-family: inherit;
+  text-align: center;
+}
+
+.template-card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.template-card.active {
+  border-color: var(--primary);
+  background: rgba(59, 130, 246, 0.08);
+  box-shadow: 0 0 0 3px var(--primary-glow), var(--shadow-md);
+}
+
+.template-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.template-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.template-card.active .template-name {
+  color: var(--primary-light);
+}
+
+.template-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.template-card.active .template-desc {
+  color: var(--text-secondary);
+}
+
+/* ==========================
+   RFP Textarea
+   ========================== */
+.rfp-textarea {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: all 0.2s ease;
+  min-height: 120px;
+}
+
+.rfp-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.rfp-textarea::placeholder {
+  color: var(--text-muted);
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+
+.rfp-char-count {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: -4px;
+}
+
+/* ==========================
+   Draft Setup Actions
+   ========================== */
+.draft-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.btn-generate {
+  padding: 12px 28px;
+  font-size: 0.95rem;
 }
