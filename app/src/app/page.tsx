@@ -287,6 +287,7 @@ export default function HomePage() {
   const [draftStep, setDraftStep] = useState<'setup' | 'result'>('setup');
   const [templateType, setTemplateType] = useState<'technical' | 'business' | 'simple'>('technical');
   const [rfpContext, setRfpContext] = useState<string>('');
+  const [isEditing, setIsEditing] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -462,6 +463,7 @@ export default function HomePage() {
     setDraftLoading(false);
     setDraftStep('setup');
     setRfpContext('');
+    setIsEditing(false);
   };
 
   const copyDraft = () => {
@@ -897,7 +899,7 @@ export default function HomePage() {
                   </p>
                   <textarea
                     className="rfp-textarea"
-                    placeholder="여기에 RFP, 과업내용서, 평가기준, 요구사항 등을 붙여넣으세요...&#10;&#10;예시:&#10;- 평가항목: 기술 이해도(30점), 수행방안(40점), 프로젝트 관리(30점)&#10;- 사업 범위: AI 기반 민원상담 챗봇 개발&#10;- 요구 기능: 자연어 처리, 다국어 지원, 관리자 대시보드"
+                    placeholder={"여기에 RFP, 과업내용서, 평가기준, 요구사항 등을 붙여넣으세요...\n\n예시:\n- 평가항목: 기술 이해도(30점), 수행방안(40점), 프로젝트 관리(30점)\n- 사업 범위: AI 기반 민원상담 챗봇 개발\n- 요구 기능: 자연어 처리, 다국어 지원, 관리자 대시보드"}
                     value={rfpContext}
                     onChange={(e) => setRfpContext(e.target.value)}
                     rows={8}
@@ -955,6 +957,12 @@ export default function HomePage() {
                         📋 초안 복사
                       </button>
                       <button
+                        className={`btn btn-sm ${isEditing ? 'btn-draft' : 'btn-secondary'}`}
+                        onClick={() => setIsEditing(!isEditing)}
+                      >
+                        {isEditing ? '👁️ 미리보기' : '✏️ 직접 수정'}
+                      </button>
+                      <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => setDraftStep('setup')}
                       >
@@ -962,16 +970,27 @@ export default function HomePage() {
                       </button>
                       <button
                         className="btn btn-secondary btn-sm"
-                        onClick={handleGenerateDraft}
+                        onClick={() => { setIsEditing(false); handleGenerateDraft(); }}
                       >
                         🔄 다시 생성
                       </button>
                     </div>
                     <div className="draft-content">
-                      <div className="draft-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(draftContent) }} />
+                      {isEditing ? (
+                        <textarea
+                          className="draft-edit-textarea"
+                          value={draftContent}
+                          onChange={(e) => setDraftContent(e.target.value)}
+                        />
+                      ) : (
+                        <div className="draft-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(draftContent) }} />
+                      )}
                     </div>
                     <div className="draft-disclaimer">
-                      ⚠️ AI가 생성한 초안입니다. 실제 제출 전 반드시 내용을 검토하고 수정하세요.
+                      {isEditing
+                        ? '✏️ 마크다운 형식으로 직접 수정 중입니다. "미리보기"를 눌러 결과를 확인하세요.'
+                        : '⚠️ AI가 생성한 초안입니다. "직접 수정"을 눌러 내용을 수정하세요.'
+                      }
                     </div>
                   </>
                 )}

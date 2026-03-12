@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getCompanyProfileText } from '@/lib/company-profile';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
@@ -159,12 +160,15 @@ ${rfpContext}
 
     const templateSections = getTemplateSections(templateType);
 
+    const companyProfile = getCompanyProfileText();
+
     return `당신은 대한민국 공공조달 입찰 제안서 작성 전문가입니다.
 수십 건의 정부 입찰에 참여한 경험을 가진 제안서 컨설턴트로서,
-아래 입찰공고 정보를 바탕으로 **${getTemplateLabel(templateType)}** 초안을 작성해주세요.
+아래 입찰공고 정보와 **제안 회사의 제품·역량 정보**를 바탕으로 **${getTemplateLabel(templateType)}** 초안을 작성해주세요.
 
 ${bidInfo}
 ${rfpSection}
+${companyProfile}
 
 ## 작성 요청사항
 다음 섹션별로 제안서 초안을 작성해주세요. 각 섹션은 마크다운 형식으로 작성합니다.
@@ -174,10 +178,13 @@ ${templateSections}
 ## 작성 원칙
 1. 공고명과 제안요청서 내용에서 사업의 핵심을 정확히 파악하여 **맞춤형으로 작성**
 2. 일반적이고 추상적인 내용이 아닌 **구체적이고 실행 가능한 내용** 작성
-3. 전문적이고 신뢰감 있는 톤 유지
-4. 마크다운 형식 사용 (헤딩, 볼드, 리스트, 표 적극 활용)
-5. 각 섹션 제목은 ## 헤딩으로 작성
-6. ${rfpContext ? '제공된 RFP/평가기준에 맞춰 내용의 비중을 조절하세요' : '공고명에서 핵심 키워드를 추출하여 사업 범위를 추정하세요'}`;
+3. 위에 제공된 **제안 회사(제논)의 GenOS 플랫폼 역량과 레퍼런스**를 제안서 전반에 자연스럽게 반영
+4. 전문적이고 신뢰감 있는 톤 유지
+5. 마크다운 형식 사용 (헤딩, 볼드, 리스트, 표 적극 활용)
+6. 각 섹션 제목은 ## 헤딩으로 작성
+7. ${rfpContext ? '제공된 RFP/평가기준에 맞춰 내용의 비중을 조절하세요' : '공고명에서 핵심 키워드를 추출하여 사업 범위를 추정하세요'}
+8. 투입 인력/조직 섹션에서는 제논의 실제 역량 기반으로 구성하세요
+9. 기대효과 섹션에서는 GenOS의 검증된 레퍼런스를 근거로 구체적 수치를 제시하세요`;
 }
 
 function getTemplateLabel(type: TemplateType): string {
