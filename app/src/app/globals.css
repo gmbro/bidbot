@@ -1573,3 +1573,24 @@ body {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
 }
+
+/* ==========================
+   Draft Regen Section
+   ========================== */
+.draft-regen-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.draft-regen-section .rfp-textarea {
+  min-height: 80px;
+}
+
+.draft-regen-section .draft-setup-actions {
+  border-top: none;
+  padding-top: 0;
+}
