@@ -1,0 +1,19 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# screenshots (optional, can be large)
+# screenshots/
+
+# Node.js (for app subfolder)
+app/node_modules/
+app/.next/
+app/.env*
+app/.vercel
+app/check-api.sh
