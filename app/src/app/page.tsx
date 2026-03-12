@@ -284,9 +284,8 @@ export default function HomePage() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftContent, setDraftContent] = useState<string>('');
   const [draftError, setDraftError] = useState<string | null>(null);
-  const [draftStep, setDraftStep] = useState<'setup' | 'result'>('setup');
-  const [templateType, setTemplateType] = useState<'technical' | 'business' | 'simple'>('technical');
   const [rfpContext, setRfpContext] = useState<string>('');
+  const [additionalNotes, setAdditionalNotes] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error') => {
@@ -404,24 +403,22 @@ export default function HomePage() {
     }
   };
 
-  // 초안 설정 모달 열기 (1단계)
-  const openDraftSetup = (item: BidItem) => {
+  // 초안 모달 열기
+  const openDraftModal = (item: BidItem) => {
     setDraftItem(item);
-    setDraftStep('setup');
     setDraftContent('');
     setDraftError(null);
     setDraftLoading(false);
-    setTemplateType('technical');
     setRfpContext('');
-    setSelectedItem(null); // 상세 모달 닫기
+    setAdditionalNotes('');
+    setIsEditing(false);
+    setSelectedItem(null);
   };
 
-  // 초안 생성 핸들러 (2단계로 전환)
+  // 초안 생성 핸들러
   const handleGenerateDraft = async () => {
     if (!draftItem) return;
-    setDraftStep('result');
     setDraftLoading(true);
-    setDraftContent('');
     setDraftError(null);
 
     try {
@@ -437,17 +434,14 @@ export default function HomePage() {
           estimatedPrice: draftItem.estimatedPrice ? formatPrice(draftItem.estimatedPrice) : undefined,
           bidEndDt: draftItem.bidEndDt ? formatDisplayDate(draftItem.bidEndDt) : undefined,
           rfpContext,
-          templateType,
+          additionalNotes,
         }),
       });
 
       const data = await res.json();
-
-      if (!data.success) {
-        throw new Error(data.error);
-      }
-
+      if (!data.success) throw new Error(data.error);
       setDraftContent(data.draft);
+      setIsEditing(false);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '초안 생성에 실패했습니다';
       setDraftError(errorMsg);
@@ -461,17 +455,19 @@ export default function HomePage() {
     setDraftContent('');
     setDraftError(null);
     setDraftLoading(false);
-    setDraftStep('setup');
     setRfpContext('');
+    setAdditionalNotes('');
     setIsEditing(false);
   };
 
-  const copyDraft = () => {
-    if (draftContent) {
-      navigator.clipboard.writeText(draftContent);
-      showToast('📋 초안이 클립보드에 복사되었습니다', 'success');
-    }
+  const handleDownloadDocx = async () => {
+    if (!draftContent || !draftItem) return;
+    const { downloadAsDocx } = await import('@/lib/docx-export');
+    const filename = `제안서_${draftItem.title.slice(0, 30).replace(/[/\\?%*:|"<>]/g, '')}`;
+    await downloadAsDocx(draftContent, filename);
+    showToast('📥 docx 파일을 다운로드했습니다', 'success');
   };
+
 
   return (
     <div className="app-container">
@@ -695,7 +691,7 @@ export default function HomePage() {
                 <div className="bid-card-actions" onClick={(e) => e.stopPropagation()}>
                   <button
                     className="btn btn-draft btn-sm"
-                    onClick={() => openDraftSetup(item)}
+                    onClick={() => openDraftModal(item)}
                   >
                     ✍️ 초안 작성
                   </button>
@@ -816,7 +812,7 @@ export default function HomePage() {
               )}
               <button
                 className="btn btn-draft"
-                onClick={() => openDraftSetup(selectedItem)}
+                onClick={() => openDraftModal(selectedItem)}
               >
                 ✍️ 초안 작성하기
               </button>
@@ -836,7 +832,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Draft Modal — 2단계 */}
+      {/* Draft Modal */}
       {draftItem && (
         <div className="modal-overlay" onClick={closeDraftModal}>
           <div className="draft-modal" onClick={(e) => e.stopPropagation()}>
@@ -853,41 +849,9 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* ── 1단계: 설정 ── */}
-            {draftStep === 'setup' && (
+            {/* RFP 입력 영역  — 항상 표시 */}
+            {!draftContent && !draftLoading && (
               <div className="draft-setup">
-                {/* 양식 선택 */}
-                <div className="draft-section">
-                  <h3 className="draft-section-title">📋 제안서 양식 선택</h3>
-                  <div className="template-cards">
-                    <button
-                      className={`template-card ${templateType === 'technical' ? 'active' : ''}`}
-                      onClick={() => setTemplateType('technical')}
-                    >
-                      <span className="template-icon">🔧</span>
-                      <span className="template-name">기술제안서</span>
-                      <span className="template-desc">기술 역량·방법론·아키텍처 중심</span>
-                    </button>
-                    <button
-                      className={`template-card ${templateType === 'business' ? 'active' : ''}`}
-                      onClick={() => setTemplateType('business')}
-                    >
-                      <span className="template-icon">📊</span>
-                      <span className="template-name">사업계획서</span>
-                      <span className="template-desc">사업 타당성·ROI·전략 중심</span>
-                    </button>
-                    <button
-                      className={`template-card ${templateType === 'simple' ? 'active' : ''}`}
-                      onClick={() => setTemplateType('simple')}
-                    >
-                      <span className="template-icon">📝</span>
-                      <span className="template-name">간이제안서</span>
-                      <span className="template-desc">소규모 사업용 간결한 양식</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* RFP 입력 */}
                 <div className="draft-section">
                   <h3 className="draft-section-title">
                     📄 제안요청서(RFP) / 요구사항 입력
@@ -899,10 +863,10 @@ export default function HomePage() {
                   </p>
                   <textarea
                     className="rfp-textarea"
-                    placeholder={"여기에 RFP, 과업내용서, 평가기준, 요구사항 등을 붙여넣으세요...\n\n예시:\n- 평가항목: 기술 이해도(30점), 수행방안(40점), 프로젝트 관리(30점)\n- 사업 범위: AI 기반 민원상담 챗봇 개발\n- 요구 기능: 자연어 처리, 다국어 지원, 관리자 대시보드"}
+                    placeholder={"여기에 RFP, 과업내용서, 평가기준, 요구사항 등을 붙여넣으세요...\n\n입력하지 않아도 공고 제목 기반으로 초안을 생성합니다."}
                     value={rfpContext}
                     onChange={(e) => setRfpContext(e.target.value)}
-                    rows={8}
+                    rows={6}
                   />
                   {rfpContext && (
                     <div className="rfp-char-count">
@@ -911,7 +875,6 @@ export default function HomePage() {
                   )}
                 </div>
 
-                {/* 생성 버튼 */}
                 <div className="draft-setup-actions">
                   <button className="btn btn-secondary" onClick={closeDraftModal}>
                     취소
@@ -923,86 +886,102 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* ── 2단계: 결과 ── */}
-            {draftStep === 'result' && (
+            {/* 로딩 */}
+            {draftLoading && (
+              <div className="draft-loading">
+                <div className="draft-spinner">
+                  <div className="spinner" />
+                </div>
+                <p className="draft-loading-text">
+                  🤖 Gemini AI가 기술+사업 통합 제안서 초안을 작성하고 있습니다...
+                </p>
+                <p className="draft-loading-sub">
+                  {rfpContext ? 'RFP 내용 + GenOS 역량을 반영합니다' : '공고 제목 + GenOS 역량을 기반으로 생성합니다'} (약 15~30초)
+                </p>
+              </div>
+            )}
+
+            {/* 에러 */}
+            {draftError && (
+              <div className="draft-error">
+                <span className="error-icon">❌</span>
+                <div>
+                  <strong>초안 생성 실패</strong>
+                  <p>{draftError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* 결과 — 미리보기/편집 + 다운로드 + 추가입력 재생성 */}
+            {draftContent && (
               <>
-                {draftLoading && (
-                  <div className="draft-loading">
-                    <div className="draft-spinner">
-                      <div className="spinner" />
-                    </div>
-                    <p className="draft-loading-text">
-                      🤖 Gemini AI가 {templateType === 'technical' ? '기술제안서' : templateType === 'business' ? '사업계획서' : '간이제안서'} 초안을 작성하고 있습니다...
-                    </p>
-                    <p className="draft-loading-sub">
-                      {rfpContext ? 'RFP 내용을 분석하여 맞춤형 초안을 생성합니다' : '공고 내용을 분석하여 초안을 생성합니다'} (약 10~30초 소요)
-                    </p>
-                  </div>
-                )}
+                <div className="draft-actions-top">
+                  <button className="btn btn-primary btn-sm" onClick={() => {
+                    navigator.clipboard.writeText(draftContent);
+                    showToast('📋 초안이 클립보드에 복사되었습니다', 'success');
+                  }}>
+                    📋 복사
+                  </button>
+                  <button
+                    className={`btn btn-sm ${isEditing ? 'btn-draft' : 'btn-secondary'}`}
+                    onClick={() => setIsEditing(!isEditing)}
+                  >
+                    {isEditing ? '��️ 미리보기' : '✏️ 직접 수정'}
+                  </button>
+                  <button className="btn btn-sm btn-secondary" onClick={handleDownloadDocx}>
+                    📥 다운로드 (.docx)
+                  </button>
+                </div>
 
-                {draftError && (
-                  <div className="draft-error">
-                    <span className="error-icon">❌</span>
-                    <div>
-                      <strong>초안 생성 실패</strong>
-                      <p>{draftError}</p>
-                    </div>
-                  </div>
-                )}
+                <div className="draft-content">
+                  {isEditing ? (
+                    <textarea
+                      className="draft-edit-textarea"
+                      value={draftContent}
+                      onChange={(e) => setDraftContent(e.target.value)}
+                    />
+                  ) : (
+                    <div className="draft-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(draftContent) }} />
+                  )}
+                </div>
 
-                {draftContent && (
-                  <>
-                    <div className="draft-actions-top">
-                      <button className="btn btn-primary btn-sm" onClick={copyDraft}>
-                        📋 초안 복사
-                      </button>
-                      <button
-                        className={`btn btn-sm ${isEditing ? 'btn-draft' : 'btn-secondary'}`}
-                        onClick={() => setIsEditing(!isEditing)}
-                      >
-                        {isEditing ? '👁️ 미리보기' : '✏️ 직접 수정'}
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setDraftStep('setup')}
-                      >
-                        ⚙️ 설정 변경
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => { setIsEditing(false); handleGenerateDraft(); }}
-                      >
-                        🔄 다시 생성
-                      </button>
-                    </div>
-                    <div className="draft-content">
-                      {isEditing ? (
-                        <textarea
-                          className="draft-edit-textarea"
-                          value={draftContent}
-                          onChange={(e) => setDraftContent(e.target.value)}
-                        />
-                      ) : (
-                        <div className="draft-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(draftContent) }} />
-                      )}
-                    </div>
-                    <div className="draft-disclaimer">
-                      {isEditing
-                        ? '✏️ 마크다운 형식으로 직접 수정 중입니다. "미리보기"를 눌러 결과를 확인하세요.'
-                        : '⚠️ AI가 생성한 초안입니다. "직접 수정"을 눌러 내용을 수정하세요.'
-                      }
-                    </div>
-                  </>
-                )}
-
-                {(draftError || (!draftLoading && !draftContent)) && (
+                {/* 추가 입력 + 재생성 */}
+                <div className="draft-regen-section">
+                  <h3 className="draft-section-title">💬 추가 요청사항</h3>
+                  <textarea
+                    className="rfp-textarea"
+                    placeholder={"수정하고 싶은 내용이나 추가 요청사항을 입력하세요...\n\n예시:\n- 인력 구성을 5명에서 7명으로 늘려줘\n- 기대효과에 비용 절감 내용을 더 추가해줘\n- 보안 관련 내용을 강화해줘"}
+                    value={additionalNotes}
+                    onChange={(e) => setAdditionalNotes(e.target.value)}
+                    rows={4}
+                  />
                   <div className="draft-setup-actions">
-                    <button className="btn btn-secondary" onClick={() => setDraftStep('setup')}>
-                      ← 설정으로 돌아가기
+                    <button
+                      className="btn btn-draft btn-generate"
+                      onClick={handleGenerateDraft}
+                      disabled={draftLoading}
+                    >
+                      🔄 재생성
                     </button>
                   </div>
-                )}
+                </div>
+
+                <div className="draft-disclaimer">
+                  {isEditing
+                    ? '✏️ 마크다운 형식으로 직접 수정 중입니다. "미리보기"를 눌러 결과를 확인하세요.'
+                    : '⚠️ AI가 생성한 초안입니다. 수정 후 다운로드하거나 추가 요청사항을 입력하여 재생성하세요.'
+                  }
+                </div>
               </>
+            )}
+
+            {/* 에러 시 돌아가기 */}
+            {(draftError && !draftContent) && (
+              <div className="draft-setup-actions">
+                <button className="btn btn-secondary" onClick={() => { setDraftError(null); }}>
+                  ← 다시 시도하기
+                </button>
+              </div>
             )}
           </div>
         </div>
