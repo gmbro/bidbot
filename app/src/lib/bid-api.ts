@@ -254,6 +254,41 @@ export async function fetchYesterdayAiBids(): Promise<BidItem[]> {
 }
 
 /**
+ * 특정 시간 기준 최근 1시간(지난 시간 정각 ~ 59분) 내 등록된 AI 관련 공고만 추출 (시간 단위 알림용)
+ */
+export async function fetchHourlyAiBids(nowDate: Date = new Date()): Promise<BidItem[]> {
+    const y = nowDate.getFullYear();
+    const m = String(nowDate.getMonth() + 1).padStart(2, '0');
+    const d = String(nowDate.getDate()).padStart(2, '0');
+    
+    // 이전 시간 구하기 (ex: 현재 10시 -> 9시 조회)
+    let targetHour = nowDate.getHours() - 1;
+    let targetDate = new Date(nowDate);
+    
+    if (targetHour < 0) {
+        targetHour = 23;
+        targetDate.setDate(targetDate.getDate() - 1);
+        const prevY = targetDate.getFullYear();
+        const prevM = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const prevD = String(targetDate.getDate()).padStart(2, '0');
+        
+        const hStr = '23';
+        const startDate = `${prevY}${prevM}${prevD}${hStr}00`;
+        const endDate = `${prevY}${prevM}${prevD}${hStr}59`;
+        const { items } = await fetchAllBids(startDate, endDate, 1, 100);
+        return items.filter(item => item.isPriority);
+    }
+    
+    const hStr = String(targetHour).padStart(2, '0');
+    const startDate = `${y}${m}${d}${hStr}00`;
+    const endDate = `${y}${m}${d}${hStr}59`;
+
+    const { items } = await fetchAllBids(startDate, endDate, 1, 100);
+    // 우선순위 키워드가 있는 공고만 필터링 (키워드에 있는 공고만 알려달라는 요청)
+    return items.filter(item => item.isPriority);
+}
+
+/**
  * 추정가격 포맷팅
  */
 export function formatPrice(price?: string): string {

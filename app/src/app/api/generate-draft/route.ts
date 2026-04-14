@@ -48,7 +48,7 @@ async function findAvailableModel(): Promise<string> {
 async function callGemini(prompt: string): Promise<string> {
     const modelName = await findAvailableModel();
     console.log(`[generate-draft] Using model: ${modelName}`);
-    const maxRetries = 3;
+    const maxRetries = 5;
     let lastError = '';
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -69,9 +69,11 @@ async function callGemini(prompt: string): Promise<string> {
                 const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (text) return text;
                 lastError = 'AI가 텍스트를 생성하지 못했습니다.';
-            } else if (res.status === 429) {
-                lastError = '할당량 초과';
-                await new Promise(r => setTimeout(r, 2000 * attempt));
+            } else if (res.status === 429 || res.status === 503) {
+                console.log(`[generate-draft] 429/503 Error. Retrying... (Attempt ${attempt}/${maxRetries})`);
+                lastError = '무료 할당량 초과 대기 시도 중...';
+                // 4초, 8초, 12초, 16초 등 점진적 대기 추가 (분당 15회 제한 회피)
+                await new Promise(r => setTimeout(r, 4000 * attempt));
                 continue;
             } else {
                 const err = await res.json().catch(() => ({}));
@@ -81,7 +83,7 @@ async function callGemini(prompt: string): Promise<string> {
             lastError = e instanceof Error ? e.message : String(e);
         }
     }
-    throw new Error(`Gemini API 호출 실패: ${lastError}`);
+    throw new Error(`요청량이 폭주하여 일시적으로 지연되고 있습니다. 잠시 후 5분 뒤에 다시 시도해주세요. (상세: ${lastError})`);
 }
 
 // ─── 통합 프롬프트 ───

@@ -20,7 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchAllBids, formatDateForApi, formatDisplayDate, formatPrice, getBidDetailUrl, isPriorityBid, matchPriorityKeywords } from '@/lib/bid-api';
+import { fetchAllBids, fetchHourlyAiBids, formatDateForApi, formatDisplayDate, formatPrice, getBidDetailUrl, isPriorityBid, matchPriorityKeywords } from '@/lib/bid-api';
 import { getSlackMode, postSlackMessage, postSlackWebhook } from '@/lib/slack';
 import type { BidItem } from '@/types/bid';
 
@@ -245,23 +245,35 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 어제 날짜
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const startDate = formatDateForApi(yesterday, false);
-        const endDate = formatDateForApi(yesterday, true);
-        const dateStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+        const type = request.nextUrl.searchParams.get('type') || 'daily';
+        
+        // 날짜 세팅
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:00`;
 
-        console.log(`[Slack Notify] ${dateStr} 공고 조회 중... (mode: ${mode})`);
+        console.log(`[Slack Notify] ${dateStr} 공고 조회 중... (mode: ${mode}, type: ${type})`);
 
-        // 전체 공고 조회 → AI 관련만 필터
-        const { items: allItems } = await fetchAllBids(startDate, endDate, 1, 999);
-        const aiItems = allItems.filter(i => i.isAiRelated);
-        const priorityItems = aiItems.filter(i => i.isPriority);
+        let aiItems: BidItem[] = [];
+        let priorityItems: BidItem[] = [];
 
-        console.log(`[Slack Notify] 전체 ${allItems.length}건, AI 관련 ${aiItems.length}건, 우선순위 ${priorityItems.length}건`);
+        if (type === 'cron') {
+            // cron 잡: 최근 한 시간 우선순위 키워드 공고만
+            priorityItems = await fetchHourlyAiBids(now);
+            aiItems = priorityItems; // 여기서는 알림 대상만 취급
+        } else {
+            // 기존 daily 잡 (어제)
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const startDate = formatDateForApi(yesterday, false);
+            const endDate = formatDateForApi(yesterday, true);
+            
+            const { items: allItems } = await fetchAllBids(startDate, endDate, 1, 999);
+            aiItems = allItems.filter(i => i.isAiRelated);
+            priorityItems = aiItems.filter(i => i.isPriority);
+            console.log(`[Slack Notify] 전체 ${allItems.length}건, AI 관련 ${aiItems.length}건, 우선순위 ${priorityItems.length}건`);
+        }
 
-        // 공고가 없으면 알림 안 보냄 (스크린샷처럼)
+        // 공고가 없으면 알림 안 보냄
         if (aiItems.length === 0) {
             return NextResponse.json({
                 success: true,

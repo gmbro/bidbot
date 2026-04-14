@@ -656,7 +656,20 @@ export default function HomePage() {
                     </span>
                     {item.matchedKeywords.length > 0 && (
                       <span className="matched-keywords">
-                        {item.matchedKeywords.map(kw => <span key={kw} className="keyword-tag">{kw}</span>)}
+                        {item.matchedKeywords.map(kw => (
+                          <span 
+                            key={kw} 
+                            className="keyword-tag" 
+                            style={{ cursor: 'pointer' }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setKeyword(kw); 
+                              setPage(1); 
+                            }}
+                          >
+                            {kw}
+                          </span>
+                        ))}
                       </span>
                     )}
                   </div>
@@ -752,7 +765,21 @@ export default function HomePage() {
               )}
               {selectedItem.matchedKeywords.length > 0 && (
                 <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {selectedItem.matchedKeywords.map(kw => <span key={kw} className="keyword-tag">{kw}</span>)}
+                  {selectedItem.matchedKeywords.map(kw => (
+                    <span 
+                      key={kw} 
+                      className="keyword-tag" 
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setKeyword(kw); 
+                        setPage(1); 
+                        setSelectedItem(null);
+                      }}
+                    >
+                      {kw}
+                    </span>
+                  ))}
                 </span>
               )}
             </div>
