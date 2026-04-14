@@ -19,36 +19,17 @@ function isValidApiKey(key: string): boolean {
     return true;
 }
 
-async function findAvailableModel(): Promise<string> {
-    try {
-        const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`
-        );
-        if (!res.ok) return 'gemini-2.0-flash';
-        const data = await res.json();
-        const models = data.models || [];
-        const preferred = [
-            'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro',
-            'gemini-2.0-pro', 'gemini-1.5-flash', 'gemini-1.5-pro',
-        ];
-        const available = models
-            .filter((m: { supportedGenerationMethods?: string[] }) =>
-                m.supportedGenerationMethods?.includes('generateContent'))
-            .map((m: { name: string }) => m.name.replace('models/', ''));
-        for (const pref of preferred) {
-            const match = available.find((name: string) => name.startsWith(pref));
-            if (match) return match;
-        }
-        return available[0] || 'gemini-2.0-flash';
-    } catch {
-        return 'gemini-2.0-flash';
-    }
+export const maxDuration = 60; // Vercel 무료 티어 최대 60초 대기 허용
+
+async function getModelName(): Promise<string> {
+    // 할당량 소모를 막기 위해 매번 API를 찔러보지 않고, 속도가 압도적으로 빠른 최신 2.0-flash 모델을 기본 고정합니다.
+    return 'gemini-2.0-flash';
 }
 
 async function callGemini(prompt: string): Promise<string> {
-    const modelName = await findAvailableModel();
+    const modelName = await getModelName();
     console.log(`[generate-draft] Using model: ${modelName}`);
-    const maxRetries = 5;
+    const maxRetries = 2; // 한 번 429가 뜨면 30초(+a)를 대기해야 함. Vercel 타임아웃(60초)을 피하기 위해 2회만 시도.
     let lastError = '';
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -70,10 +51,11 @@ async function callGemini(prompt: string): Promise<string> {
                 if (text) return text;
                 lastError = 'AI가 텍스트를 생성하지 못했습니다.';
             } else if (res.status === 429 || res.status === 503) {
-                console.log(`[generate-draft] 429/503 Error. Retrying... (Attempt ${attempt}/${maxRetries})`);
-                lastError = '무료 할당량 초과 대기 시도 중...';
-                // 4초, 8초, 12초, 16초 등 점진적 대기 추가 (분당 15회 제한 회피)
-                await new Promise(r => setTimeout(r, 4000 * attempt));
+                console.log(`[generate-draft] 429 Error. Waiting for 32 seconds to clear Google ratelimit penalty...`);
+                lastError = '무료 API 요청 제한(1분에 15회)을 초과했습니다. 약 30초 후 자동으로 재시도됩니다.';
+                // 구글은 429 에러 상태에서 다시 찌르면 패널티 타임(30초)을 초기화합니다.
+                // 따라서 짧게 여러 번 재시도하면 절대 안 되며, 무조건 30초 이상 (32000ms) 깔끔하게 대기해야 통과됩니다.
+                await new Promise(r => setTimeout(r, 32000));
                 continue;
             } else {
                 const err = await res.json().catch(() => ({}));
