@@ -28,8 +28,8 @@ async function findAvailableModel(): Promise<string> {
         const data = await res.json();
         const models = data.models || [];
         const preferred = [
-            'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-pro',
-            'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash',
+            'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro',
+            'gemini-2.0-pro', 'gemini-1.5-flash', 'gemini-1.5-pro',
         ];
         const available = models
             .filter((m: { supportedGenerationMethods?: string[] }) =>
