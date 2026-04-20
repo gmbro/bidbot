@@ -18,21 +18,21 @@
   --danger: #ef4444;
   --info: #06b6d4;
 
-  /* 다크 테마 배경 */
-  --bg-primary: #0a0a1a;
-  --bg-secondary: #111127;
-  --bg-card: #16163a;
-  --bg-card-hover: #1e1e4a;
-  --bg-surface: #1a1a3e;
+  /* 라이트 테마 배경 */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9fafb;
+  --bg-surface: #f1f5f9;
 
   /* 텍스트 */
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
   --text-muted: #64748b;
 
   /* 보더 */
-  --border: rgba(148, 163, 184, 0.1);
-  --border-hover: rgba(148, 163, 184, 0.2);
+  --border: rgba(15, 23, 42, 0.1);
+  --border-hover: rgba(15, 23, 42, 0.2);
 
   /* 그라디언트 */
   --gradient-primary: linear-gradient(135deg, #3b82f6, #8b5cf6);
@@ -149,7 +149,13 @@ body {
   z-index: 1;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 16px;
+}
+
+@media (min-width: 768px) {
+  .app-container {
+    padding: 24px;
+  }
 }
 
 /* ==========================
@@ -672,13 +678,13 @@ body {
 
 .badge-construction {
   background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  color: #b45309;
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
 .badge-thing {
   background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  color: #059669;
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
@@ -812,7 +818,7 @@ body {
   border-radius: var(--radius-md);
   padding: 16px 20px;
   margin-bottom: 24px;
-  color: #fca5a5;
+  color: #b91c1c;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -898,7 +904,7 @@ body {
   display: inline-block;
   padding: 2px 8px;
   background: rgba(6, 182, 212, 0.15);
-  color: #22d3ee;
+  color: #0891b2;
   border: 1px solid rgba(6, 182, 212, 0.25);
   border-radius: 12px;
   font-size: 0.7rem;
@@ -1220,7 +1226,7 @@ body {
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: var(--radius-md);
   padding: 16px 20px;
-  color: #fca5a5;
+  color: #b91c1c;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -1246,7 +1252,7 @@ body {
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.2);
   border-radius: var(--radius-sm);
-  color: #fcd34d;
+  color: #b45309;
   font-size: 0.85rem;
   font-weight: 500;
 }
@@ -1593,4 +1599,186 @@ body {
 .draft-regen-section .draft-setup-actions {
   border-top: none;
   padding-top: 0;
+}
+
+/* ==========================
+   Source Tabs — 소스 선택 탭
+   ========================== */
+.source-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.source-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.source-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.source-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.source-tab.active {
+  color: white;
+  background: var(--primary);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+}
+
+.source-tab .source-count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.source-tab:not(.active) .source-count {
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+
+/* ==========================
+   Source Badge — 카드 내 소스 표시
+   ========================== */
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.source-badge-g2b {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.source-badge-bizinfo {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.source-badge-nipa {
+  color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.source-badge-nia {
+  color: #06b6d4;
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+}
+
+.source-badge-mois {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.source-badge-busan {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+/* ==========================
+   Source Stats — 소스별 통계
+   ========================== */
+.source-stats-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.source-stats-row::-webkit-scrollbar {
+  display: none;
+}
+
+.source-stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.source-stat-chip .stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.source-stat-chip .stat-num {
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+/* ==========================
+   Responsive — Source Tabs
+   ========================== */
+@media (max-width: 768px) {
+  .source-tabs {
+    gap: 4px;
+    padding: 3px;
+    border-radius: 12px;
+  }
+
+  .source-tab {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+  }
+
+  .source-stats-row {
+    gap: 6px;
+  }
+
+  .source-stat-chip {
+    padding: 5px 10px;
+    font-size: 0.72rem;
+  }
 }

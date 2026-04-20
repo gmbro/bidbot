@@ -1,69 +1,30 @@
 /**
- * 나라장터 입찰공고 API 유틸리티
- * 
+ * 나라장터(G2B) 소스 어댑터
+ *
  * data.go.kr의 조달청 나라장터 공공데이터개방표준서비스를 호출합니다.
- * 
+ *
  * API Endpoint: https://apis.data.go.kr/1230000/ao/PubDataOpnStdService
- * 
- * 주요 API:
  * - /getDataSetOpnStdBidPblancInfo (입찰공고정보 조회 - 통합)
  */
 
-import type { BidItem, BidServiceItem, ApiResponse } from '@/types/bid';
+import type { BidItem, SearchFilter } from '@/types/bid';
+import {
+    type SourceAdapter,
+    registerAdapter,
+    isAiRelated,
+    isPriorityBid,
+    matchPriorityKeywords,
+    PRIORITY_KEYWORDS,
+    AI_KEYWORDS,
+} from './source-adapter';
 
 const BASE_URL = process.env.DATA_GO_KR_BASE_URL || 'https://apis.data.go.kr/1230000/ao/PubDataOpnStdService';
 // 인코딩 키를 우선 사용 (URLSearchParams 이중 인코딩 방지)
 const API_KEY_ENCODED = process.env.DATA_GO_KR_API_KEY_ENCODED || '';
 const API_KEY_DECODED = process.env.DATA_GO_KR_API_KEY || '';
 
-// ─── 키워드 설정 ───
-// 🔴 우선순위 키워드 (이 키워드가 포함되면 자동 알림 트리거)
-export const PRIORITY_KEYWORDS = [
-    'AI', '에이전트', '플랫폼', '금융', '생성형', '지능형',
-];
-
-// 🟡 일반 AI 관련 키워드 (필터링용, 알림은 안 감)
-export const AI_KEYWORDS = [
-    // 우선순위 키워드 포함
-    ...PRIORITY_KEYWORDS,
-    // 추가 AI/디지털 키워드
-    '머신러닝', '기계학습', '딥러닝', '심층학습',
-    '대규모언어모델', '자연어처리', 'NLP',
-    '챗봇', '빅데이터', '빅 데이터',
-    '데이터분석', '데이터 분석',
-    '자율주행', '로봇', 'Robot',
-    '컴퓨터비전', '영상분석', '음성인식',
-    '지능형', '스마트',
-    '클라우드', 'SaaS', 'DaaS',
-    'IoT', '사물인터넷',
-    'RPA', '디지털전환', '디지털 전환', 'DX',
-    'XR', 'VR', 'AR', '메타버스',
-    '블록체인', 'NFT',
-];
-
-/**
- * AI 관련 공고인지 판별
- */
-export function isAiRelated(title: string): boolean {
-    const upperTitle = title.toUpperCase();
-    return AI_KEYWORDS.some(keyword => upperTitle.includes(keyword.toUpperCase()));
-}
-
-/**
- * 우선순위 키워드에 매칭되는지 판별 (자동 알림 대상)
- * @returns 매칭된 키워드 목록 (없으면 빈 배열)
- */
-export function matchPriorityKeywords(title: string): string[] {
-    const upperTitle = title.toUpperCase();
-    return PRIORITY_KEYWORDS.filter(keyword => upperTitle.includes(keyword.toUpperCase()));
-}
-
-/**
- * 우선순위 공고인지 여부 (자동 알림 대상)
- */
-export function isPriorityBid(title: string): boolean {
-    return matchPriorityKeywords(title).length > 0;
-}
+// ─── Re-export (기존 호환) ───
+export { PRIORITY_KEYWORDS, AI_KEYWORDS, isAiRelated, matchPriorityKeywords, isPriorityBid };
 
 /**
  * 날짜를 API 형식(YYYYMMDDHHmm)으로 변환
@@ -80,7 +41,6 @@ export function formatDateForApi(date: Date, isEnd = false): string {
  */
 export function formatDisplayDate(dateStr: string): string {
     if (!dateStr || dateStr.length < 8) return '-';
-    // "2026/03/04 15:00:00" 또는 "20260304" 형태 처리
     const cleaned = dateStr.replace(/[^0-9]/g, '');
     if (cleaned.length >= 12) {
         return `${cleaned.slice(0, 4)}.${cleaned.slice(4, 6)}.${cleaned.slice(6, 8)} ${cleaned.slice(8, 10)}:${cleaned.slice(10, 12)}`;
@@ -93,23 +53,20 @@ export function formatDisplayDate(dateStr: string): string {
 
 /**
  * API 원본 데이터를 통합 BidItem으로 변환
- * 신규 PubDataOpnStdService API 필드명에 맞춰 매핑
  */
 function toBidItem(item: any, category: BidItem['category']): BidItem {
-    // 접수 시작/마감 날짜+시간 조합
     const bidStartDt = item.bidBeginDate && item.bidBeginTm
         ? `${item.bidBeginDate} ${item.bidBeginTm}`
         : (item.bidBeginDt || item.bidBeginDate || '');
     const bidEndDt = item.bidClseDate && item.bidClseTm
         ? `${item.bidClseDate} ${item.bidClseTm}`
         : (item.bidClseDt || item.bidClseDate || '');
-    // 공고일시
     const noticeDt = item.bidNtceDate && item.bidNtceBgn
         ? `${item.bidNtceDate} ${item.bidNtceBgn}`
         : (item.ntceDt || item.bidNtceDate || '');
 
     return {
-        id: `${item.bidNtceNo}-${item.bidNtceOrd}`,
+        id: `g2b-${item.bidNtceNo}-${item.bidNtceOrd}`,
         bidNtceNo: item.bidNtceNo || '',
         bidNtceOrd: item.bidNtceOrd || '',
         title: item.bidNtceNm || '',
@@ -128,14 +85,25 @@ function toBidItem(item: any, category: BidItem['category']): BidItem {
         isAiRelated: isAiRelated(item.bidNtceNm || ''),
         isPriority: isPriorityBid(item.bidNtceNm || ''),
         matchedKeywords: matchPriorityKeywords(item.bidNtceNm || ''),
+        // 소스 정보
+        source: 'g2b',
+        sourceLabel: '나라장터',
     };
 }
 
 /**
+ * 공고 제목/분류로 카테고리 추정
+ */
+function classifyCategory(title: string, classification: string): BidItem['category'] {
+    const text = (title + ' ' + classification).toLowerCase();
+    if (text.includes('용역') || text.includes('서비스') || text.includes('컨설팅') || text.includes('개발') || text.includes('시스템') || text.includes('구축')) return 'service';
+    if (text.includes('공사') || text.includes('건설') || text.includes('신축') || text.includes('개보수')) return 'construction';
+    if (text.includes('물품') || text.includes('구매') || text.includes('장비') || text.includes('납품')) return 'thing';
+    return 'etc';
+}
+
+/**
  * 입찰공고 조회 (신규 통합 API)
- * 
- * PubDataOpnStdService/getDataSetOpnStdBidPblancInfo 엔드포인트 사용
- * 카테고리 구분 없이 통합 조회 후 클라이언트에서 분류
  */
 async function fetchBidsFromAPI(
     startDate: string,
@@ -155,56 +123,52 @@ async function fetchBidsFromAPI(
     const serviceKey = API_KEY_ENCODED || encodeURIComponent(API_KEY_DECODED);
     const url = `${BASE_URL}/getDataSetOpnStdBidPblancInfo?serviceKey=${serviceKey}&${params.toString()}`;
 
-    console.log(`[API Call] ${url.substring(0, 150)}...`);
+    console.log(`[G2B API Call] ${url.substring(0, 150)}...`);
 
     const response = await fetch(url, {
         headers: { 'Accept': 'application/json' },
-        next: { revalidate: 300 }, // 5분 캐시
+        next: { revalidate: 180 },
+        signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[API Error] ${response.status}: ${errorText.substring(0, 200)}`);
+        console.error(`[G2B API Error] ${response.status}: ${errorText.substring(0, 200)}`);
         throw new Error(`API 호출 실패: ${response.status} - ${errorText.substring(0, 100)}`);
     }
 
     const data = await response.json();
 
-    // 응답 구조: response.header.resultCode / response.body.items
-    const header = data.response?.header;
-    if (header?.resultCode !== '00') {
-        console.error(`[API Error] resultCode: ${header?.resultCode}, msg: ${header?.resultMsg}`);
-        throw new Error(`API 에러: ${header?.resultMsg}`);
+    // 에러 응답 구조 처리
+    const errorResponse = data['nkoneps.com.response.ResponseError'];
+    if (errorResponse) {
+        const errHeader = errorResponse.header;
+        console.error(`[G2B API Error] resultCode: ${errHeader?.resultCode}, msg: ${errHeader?.resultMsg}`);
+        throw new Error(`API 에러: ${errHeader?.resultMsg || '알 수 없는 에러'}`);
     }
 
-    // items가 배열이 아닌 경우 처리
+    // 정상 응답 구조
+    const header = data.response?.header;
+    if (header?.resultCode !== '00') {
+        console.error(`[G2B API Error] resultCode: ${header?.resultCode}, msg: ${header?.resultMsg}`);
+        throw new Error(`API 에러: ${header?.resultMsg || '알 수 없는 에러'}`);
+    }
+
     let rawItems = data.response?.body?.items || [];
     if (!Array.isArray(rawItems)) {
         rawItems = rawItems?.item || [];
         if (!Array.isArray(rawItems)) rawItems = [rawItems];
     }
 
-    // 업무구분에 따라 카테고리 분류
     const items = rawItems.map((item: any) => {
         const category = classifyCategory(item.bidNtceNm || '', item.prdctClsfcNoNm || '');
         return toBidItem(item, category);
     });
     const totalCount = data.response?.body?.totalCount || 0;
 
-    console.log(`[API Result] ${items.length}건 / 전체 ${totalCount}건`);
+    console.log(`[G2B API Result] ${items.length}건 / 전체 ${totalCount}건`);
 
     return { items, totalCount };
-}
-
-/**
- * 공고 제목/분류로 카테고리 추정
- */
-function classifyCategory(title: string, classification: string): BidItem['category'] {
-    const text = (title + ' ' + classification).toLowerCase();
-    if (text.includes('용역') || text.includes('서비스') || text.includes('컨설팅') || text.includes('개발') || text.includes('시스템') || text.includes('구축')) return 'service';
-    if (text.includes('공사') || text.includes('건설') || text.includes('신축') || text.includes('개보수')) return 'construction';
-    if (text.includes('물품') || text.includes('구매') || text.includes('장비') || text.includes('납품')) return 'thing';
-    return 'etc';
 }
 
 /**
@@ -220,13 +184,11 @@ export async function fetchAllBids(
     try {
         const result = await fetchBidsFromAPI(startDate, endDate, pageNo, numOfRows);
 
-        // 카테고리별 통계 집계
         const totalCounts: Record<string, number> = {};
         for (const item of result.items) {
             totalCounts[item.category] = (totalCounts[item.category] || 0) + 1;
         }
 
-        // 등록일시 기준 최신순 정렬
         result.items.sort((a, b) => {
             const dateA = a.registDt || a.noticeDt || '';
             const dateB = b.registDt || b.noticeDt || '';
@@ -254,37 +216,35 @@ export async function fetchYesterdayAiBids(): Promise<BidItem[]> {
 }
 
 /**
- * 특정 시간 기준 최근 1시간(지난 시간 정각 ~ 59분) 내 등록된 AI 관련 공고만 추출 (시간 단위 알림용)
+ * 특정 시간 기준 최근 1시간 내 등록된 AI 관련 공고만 추출
  */
 export async function fetchHourlyAiBids(nowDate: Date = new Date()): Promise<BidItem[]> {
     const y = nowDate.getFullYear();
     const m = String(nowDate.getMonth() + 1).padStart(2, '0');
     const d = String(nowDate.getDate()).padStart(2, '0');
-    
-    // 이전 시간 구하기 (ex: 현재 10시 -> 9시 조회)
+
     let targetHour = nowDate.getHours() - 1;
-    let targetDate = new Date(nowDate);
-    
+    const targetDate = new Date(nowDate);
+
     if (targetHour < 0) {
         targetHour = 23;
         targetDate.setDate(targetDate.getDate() - 1);
         const prevY = targetDate.getFullYear();
         const prevM = String(targetDate.getMonth() + 1).padStart(2, '0');
         const prevD = String(targetDate.getDate()).padStart(2, '0');
-        
+
         const hStr = '23';
         const startDate = `${prevY}${prevM}${prevD}${hStr}00`;
         const endDate = `${prevY}${prevM}${prevD}${hStr}59`;
         const { items } = await fetchAllBids(startDate, endDate, 1, 100);
         return items.filter(item => item.isPriority);
     }
-    
+
     const hStr = String(targetHour).padStart(2, '0');
     const startDate = `${y}${m}${d}${hStr}00`;
     const endDate = `${y}${m}${d}${hStr}59`;
 
     const { items } = await fetchAllBids(startDate, endDate, 1, 100);
-    // 우선순위 키워드가 있는 공고만 필터링 (키워드에 있는 공고만 알려달라는 요청)
     return items.filter(item => item.isPriority);
 }
 
@@ -308,6 +268,38 @@ export function formatPrice(price?: string): string {
  * 나라장터 공고 상세 페이지 URL 생성
  */
 export function getBidDetailUrl(bidNtceNo: string, bidNtceOrd: string): string {
-    // 나라장터 공고 상세 URL 패턴
     return `https://www.g2b.go.kr/bid/ancmDtl.do?ancmId=${bidNtceNo}&ancmOrd=${bidNtceOrd}`;
 }
+
+// ─── G2B 어댑터 등록 ───
+const g2bAdapter: SourceAdapter = {
+    sourceId: 'g2b',
+    sourceLabel: '나라장터',
+
+    isAvailable(): boolean {
+        return !!(API_KEY_ENCODED || API_KEY_DECODED);
+    },
+
+    async fetch(filter: SearchFilter): Promise<BidItem[]> {
+        // G2B API는 최대 1개월(31일) 범위만 허용 → 오늘~+30일
+        const now = new Date();
+        const oneMonthLater = new Date();
+        oneMonthLater.setDate(oneMonthLater.getDate() + 30);
+
+        const startDate = formatDateForApi(now, false);
+        const endDate = formatDateForApi(oneMonthLater, true);
+
+        const { items } = await fetchAllBids(startDate, endDate, 1, 999);
+
+        // 모집 중인 공고만 반환 (마감일 >= 오늘)
+        const todayStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        return items.filter(item => {
+            if (!item.bidEndDt) return true;
+            const endDt = item.bidEndDt.replace(/[^0-9]/g, '').substring(0, 8);
+            if (!endDt || endDt.length < 8) return true;
+            return endDt >= todayStr;
+        });
+    },
+};
+
+registerAdapter(g2bAdapter);

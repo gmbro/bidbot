@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "나라장터 AI 공고 모니터",
-  description: "나라장터 입찰공고에서 AI 관련 지원사업을 실시간으로 모니터링하고 슬랙으로 알림을 받으세요.",
-  keywords: ["나라장터", "입찰공고", "AI", "지원사업", "공공조달"],
+  title: "공공사업 통합 모니터링 AI | AI·클라우드·플랫폼 공고 추적",
+  description: "나라장터, 기업마당, NIPA, 행안부, 서울AI 등 공공기관의 AI·생성형AI·플랫폼·클라우드 관련 사업 공고를 실시간으로 통합 모니터링합니다.",
+  keywords: ["공공사업", "입찰공고", "AI", "생성형AI", "클라우드", "플랫폼", "나라장터", "기업마당", "NIPA", "행안부", "서울AI"],
 };
 
 export default function RootLayout({

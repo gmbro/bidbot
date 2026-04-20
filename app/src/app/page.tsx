@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import type { BidItem } from '@/types/bid';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import type { BidItem, SourceId } from '@/types/bid';
+import { SOURCE_REGISTRY } from '@/types/bid';
 
-// 카테고리 한글 라벨
+// ─── 상수 ───
+
 const CATEGORY_LABELS: Record<string, string> = {
   all: '전체',
   service: '용역',
@@ -12,191 +14,18 @@ const CATEGORY_LABELS: Record<string, string> = {
   etc: '기타',
 };
 
-const CATEGORY_BADGE_CLASS: Record<string, string> = {
-  service: 'badge-service',
-  construction: 'badge-construction',
-  thing: 'badge-thing',
-  etc: 'badge-etc',
+const CATEGORY_ICONS: Record<string, string> = {
+  service: '🔧',
+  construction: '🏗️',
+  thing: '📦',
+  etc: '📄',
 };
 
-// 데모 데이터 (API 키 미활성화 시 사용)
-const DEMO_ITEMS: BidItem[] = [
-  {
-    id: 'DEMO-001-00',
-    bidNtceNo: 'DEMO-001',
-    bidNtceOrd: '00',
-    title: '2026년 인공지능(AI) 기반 행정업무 자동화 시스템 구축 사업',
-    organization: '행정안전부',
-    demandOrg: '행정안전부 디지털정부실',
-    noticeDt: '2026/03/04 09:00:00',
-    bidStartDt: '2026/03/04 09:00:00',
-    bidEndDt: '2026/03/18 18:00:00',
-    registDt: '2026/03/04 08:30:00',
-    bidMethod: '제한경쟁',
-    contractMethod: '협상에의한계약',
-    estimatedPrice: '2500000000',
-    category: 'service',
-    noticeKind: '입찰공고',
-    isAiRelated: true,
-    isPriority: true,
-    matchedKeywords: ['AI', '자동화', '인공지능'],
-    detailUrl: 'https://www.g2b.go.kr',
-  },
-  {
-    id: 'DEMO-002-00',
-    bidNtceNo: 'DEMO-002',
-    bidNtceOrd: '00',
-    title: '빅데이터·AI 활용 교통흐름 분석 및 예측 시스템 고도화',
-    organization: '국토교통부',
-    demandOrg: '한국도로공사',
-    noticeDt: '2026/03/04 10:00:00',
-    bidStartDt: '2026/03/04 10:00:00',
-    bidEndDt: '2026/03/20 18:00:00',
-    registDt: '2026/03/04 09:45:00',
-    bidMethod: '일반경쟁',
-    contractMethod: '총액계약',
-    estimatedPrice: '1800000000',
-    category: 'service',
-    noticeKind: '입찰공고',
-    isAiRelated: true,
-    isPriority: true,
-    matchedKeywords: ['AI'],
-    detailUrl: 'https://www.g2b.go.kr',
-  },
-  {
-    id: 'DEMO-003-00',
-    bidNtceNo: 'DEMO-003',
-    bidNtceOrd: '00',
-    title: '2026년도 청사 냉난방 설비 유지보수 용역',
-    organization: '조달청',
-    demandOrg: '조달청 시설관리과',
-    noticeDt: '2026/03/04 11:00:00',
-    bidStartDt: '2026/03/04 11:00:00',
-    bidEndDt: '2026/03/15 18:00:00',
-    registDt: '2026/03/04 10:30:00',
-    bidMethod: '일반경쟁',
-    contractMethod: '총액계약',
-    estimatedPrice: '150000000',
-    category: 'service',
-    noticeKind: '입찰공고',
-    isAiRelated: false,
-    isPriority: false,
-    matchedKeywords: [],
-    detailUrl: 'https://www.g2b.go.kr',
-  },
-  {
-    id: 'DEMO-004-00',
-    bidNtceNo: 'DEMO-004',
-    bidNtceOrd: '00',
-    title: '디지털 전환(DX) 컨설팅 및 클라우드 마이그레이션 용역',
-    organization: '과학기술정보통신부',
-    demandOrg: '한국지능정보사회진흥원',
-    noticeDt: '2026/03/04 14:00:00',
-    bidStartDt: '2026/03/04 14:00:00',
-    bidEndDt: '2026/03/22 18:00:00',
-    registDt: '2026/03/04 13:30:00',
-    bidMethod: '제한경쟁',
-    contractMethod: '협상에의한계약',
-    estimatedPrice: '3200000000',
-    category: 'service',
-    noticeKind: '입찰공고',
-    isAiRelated: true,
-    isPriority: false,
-    matchedKeywords: [],
-    detailUrl: 'https://www.g2b.go.kr',
-  },
-  {
-    id: 'DEMO-005-00',
-    bidNtceNo: 'DEMO-005',
-    bidNtceOrd: '00',
-    title: 'GPU 서버 및 AI 학습용 컴퓨팅 장비 구매',
-    organization: '과학기술정보통신부',
-    demandOrg: '한국전자통신연구원',
-    noticeDt: '2026/03/04 15:00:00',
-    bidStartDt: '2026/03/04 15:00:00',
-    bidEndDt: '2026/03/25 18:00:00',
-    registDt: '2026/03/04 14:30:00',
-    bidMethod: '일반경쟁',
-    contractMethod: '총액계약',
-    estimatedPrice: '980000000',
-    category: 'thing',
-    noticeKind: '입찰공고',
-    isAiRelated: true,
-    isPriority: true,
-    matchedKeywords: ['AI'],
-    detailUrl: 'https://www.g2b.go.kr',
-  },
-  {
-    id: 'DEMO-006-00',
-    bidNtceNo: 'DEMO-006',
-    bidNtceOrd: '00',
-    title: '2026년 데이터센터 신축 공사',
-    organization: '한국데이터산업진흥원',
-    demandOrg: '한국데이터산업진흥원',
-    noticeDt: '2026/03/04 16:00:00',
-    bidStartDt: '2026/03/04 16:00:00',
-    bidEndDt: '2026/04/01 18:00:00',
-    registDt: '2026/03/04 15:30:00',
-    bidMethod: '일반경쟁',
-    contractMethod: '총액계약',
-    estimatedPrice: '15000000000',
-    category: 'construction',
-    noticeKind: '입찰공고',
-    isAiRelated: false,
-    isPriority: false,
-    matchedKeywords: [],
-    detailUrl: 'https://www.g2b.go.kr',
-  },
-  {
-    id: 'DEMO-007-00',
-    bidNtceNo: 'DEMO-007',
-    bidNtceOrd: '00',
-    title: '생성형 AI 기반 민원상담 챗봇 구축 사업',
-    organization: '서울특별시',
-    demandOrg: '서울특별시 스마트도시정책관',
-    noticeDt: '2026/03/04 17:00:00',
-    bidStartDt: '2026/03/04 17:00:00',
-    bidEndDt: '2026/03/28 18:00:00',
-    registDt: '2026/03/04 16:30:00',
-    bidMethod: '제한경쟁',
-    contractMethod: '협상에의한계약',
-    estimatedPrice: '750000000',
-    category: 'service',
-    noticeKind: '입찰공고',
-    isAiRelated: true,
-    isPriority: true,
-    matchedKeywords: ['생성형', 'AI'],
-    detailUrl: 'https://www.g2b.go.kr',
-  },
-  {
-    id: 'DEMO-008-00',
-    bidNtceNo: 'DEMO-008',
-    bidNtceOrd: '00',
-    title: '자율주행 시범운행지구 인프라 구축 및 운영',
-    organization: '국토교통부',
-    demandOrg: '국토교통부 자동차정책과',
-    noticeDt: '2026/03/04 18:00:00',
-    bidStartDt: '2026/03/04 18:00:00',
-    bidEndDt: '2026/04/05 18:00:00',
-    registDt: '2026/03/04 17:30:00',
-    bidMethod: '제한경쟁',
-    contractMethod: '협상에의한계약',
-    estimatedPrice: '5600000000',
-    category: 'service',
-    noticeKind: '입찰공고',
-    isAiRelated: true,
-    isPriority: false,
-    matchedKeywords: [],
-    detailUrl: 'https://www.g2b.go.kr',
-  },
-];
+const KEYWORD_CHIPS = ['클라우드', 'AI', '생성형AI', '플랫폼', '에이전트', '데이터', '지능형', '디지털전환'];
 
-interface FetchResult {
-  items: BidItem[];
-  pagination: { page: number; pageSize: number; totalItems: number; totalPages: number };
-  stats: { total: number; aiRelated: number; byCategory: Record<string, number>; filtered: number };
-  query: { startDate: string; endDate: string; category: string; aiOnly: boolean; keyword: string };
-}
+const ALL_SOURCES: SourceId[] = ['g2b', 'bizinfo', 'nipa', 'mois', 'seoul'];
+
+// ─── 유틸리티 함수 ───
 
 function formatDisplayDate(dateStr: string): string {
   if (!dateStr || dateStr.length < 8) return '-';
@@ -224,9 +53,9 @@ function getToday(): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function getDateNDaysAgo(n: number): string {
+function getDateMonthsAhead(months: number): string {
   const d = new Date();
-  d.setDate(d.getDate() - n);
+  d.setMonth(d.getMonth() + months);
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -239,12 +68,33 @@ function parseDateInput(isoDate: string): string {
   return isoDate.replace(/-/g, '');
 }
 
-// 빠른 날짜 범위 선택 옵션 (종료일 기준)
-const QUICK_DATE_OPTIONS = [
-  { label: '일', days: 1 },
-  { label: '주', days: 7 },
-  { label: '월', days: 30 },
-];
+function getDaysLeftLabel(bidEndDt: string): { text: string; color: string } {
+  if (!bidEndDt) return { text: '기한 미정', color: 'var(--text-muted)' };
+  const cleaned = bidEndDt.replace(/[^0-9]/g, '');
+  if (cleaned.length < 8) return { text: '기한 미정', color: 'var(--text-muted)' };
+  const endDate = new Date(
+    parseInt(cleaned.slice(0, 4)),
+    parseInt(cleaned.slice(4, 6)) - 1,
+    parseInt(cleaned.slice(6, 8))
+  );
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const days = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return { text: '마감', color: '#ef4444' };
+  if (days === 0) return { text: 'D-Day', color: '#ef4444' };
+  if (days <= 3) return { text: `D-${days}`, color: '#f59e0b' };
+  if (days <= 7) return { text: `D-${days}`, color: '#3b82f6' };
+  return { text: `D-${days}`, color: 'var(--text-secondary)' };
+}
+
+// ─── 메인 컴포넌트 ───
+
+interface FetchResult {
+  items: BidItem[];
+  pagination: { page: number; pageSize: number; totalItems: number; totalPages: number };
+  stats: { total: number; aiRelated: number; byCategory: Record<string, number>; filtered: number; bySource?: Record<string, number> };
+  query: { startDate: string; endDate: string; category: string; aiOnly: boolean; keyword: string; sources: SourceId[] };
+}
 
 export default function HomePage() {
   const [items, setItems] = useState<BidItem[]>([]);
@@ -253,13 +103,30 @@ export default function HomePage() {
   const [isDemo, setIsDemo] = useState(false);
 
   // 필터
-  const [startDate, setStartDate] = useState(getDateNDaysAgo(1));
-  const [endDate, setEndDate] = useState(getToday());
-  const [category, setCategory] = useState<string>('all');
-  const [aiOnly, setAiOnly] = useState(false);
-  const [keyword, setKeyword] = useState('');
+  const [startDate] = useState(getToday());
+  const [endDate] = useState(getDateMonthsAhead(3));
+  const [category] = useState<string>('all');
+  const [aiOnly] = useState(false);
+  const [keyword, setKeyword] = useState('AI');
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  // 소스 선택 (기본: 전체)
+  const [activeSources, setActiveSources] = useState<SourceId[]>([]);
+  const [activeSourceTab, setActiveSourceTab] = useState<'all' | SourceId>('all');
+
+  // debounce ref
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 검색창 텍스트에서 활성 칩 동기화
+  const syncedChips = useMemo(() => {
+    const words = keyword.toLowerCase().split(/\s+/).filter(Boolean);
+    const chips = new Set<string>();
+    KEYWORD_CHIPS.forEach(chip => {
+      if (words.includes(chip.toLowerCase())) chips.add(chip);
+    });
+    return chips;
+  }, [keyword]);
 
   // 통계
   const [stats, setStats] = useState({
@@ -267,6 +134,7 @@ export default function HomePage() {
     aiRelated: 0,
     byCategory: {} as Record<string, number>,
     filtered: 0,
+    bySource: {} as Record<string, number>,
   });
   const [totalPages, setTotalPages] = useState(1);
 
@@ -279,26 +147,30 @@ export default function HomePage() {
   // 슬랙 전송 중
   const [sendingSlack, setSendingSlack] = useState(false);
 
-  // 초안 작성 상태
+  // 작성 팁 상태
   const [draftItem, setDraftItem] = useState<BidItem | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftContent, setDraftContent] = useState<string>('');
   const [draftError, setDraftError] = useState<string | null>(null);
-  const [rfpContext, setRfpContext] = useState<string>('');
-  const [additionalNotes, setAdditionalNotes] = useState<string>('');
-  const [isEditing, setIsEditing] = useState(false);
+
+  // 기간 상태 제거됨 (항상 오늘~3개월 후)
+
+  // 유사 검색 상태 (0건일 때 자동 완화 검색)
+  const [fallbackItems, setFallbackItems] = useState<BidItem[]>([]);
+  const [isFallback, setIsFallback] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchBids = useCallback(async () => {
+  const fetchBids = async () => {
     setLoading(true);
     setError(null);
     setIsDemo(false);
 
     try {
+      const sourcesToFetch = activeSourceTab === 'all' ? '' : activeSourceTab;
       const params = new URLSearchParams({
         startDate,
         endDate,
@@ -307,6 +179,7 @@ export default function HomePage() {
         keyword,
         page: String(page),
         pageSize: String(pageSize),
+        sources: sourcesToFetch,
       });
 
       const res = await fetch(`/api/bids?${params}`);
@@ -316,106 +189,131 @@ export default function HomePage() {
         throw new Error(data.error || data.message);
       }
 
-      setItems(data.data.items);
-      setStats(data.data.stats);
+      // 중복 제거 (동일 제목 공고)
+      const seen = new Set<string>();
+      const uniqueItems = data.data.items.filter((item: BidItem) => {
+        const key = item.title.trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setItems(uniqueItems);
+      setStats({ ...data.data.stats, filtered: uniqueItems.length });
       setTotalPages(data.data.pagination.totalPages);
+
+      // 결과 0건이고 키워드가 있으면 → 키워드 완화(OR) 재검색
+      if (data.data.items.length === 0 && keyword.trim()) {
+        console.log('[Fallback] 키워드 완화 재검색 시도...');
+        const fallbackParams = new URLSearchParams({
+          startDate,
+          endDate,
+          category,
+          aiOnly: String(aiOnly),
+          keyword: '',  // 키워드 없이 전체 검색
+          page: '1',
+          pageSize: '20',
+          sources: sourcesToFetch,
+        });
+        try {
+          const fbRes = await fetch(`/api/bids?${fallbackParams}`);
+          const fbData = await fbRes.json();
+          if (fbData.success && fbData.data.items.length > 0) {
+            // 키워드 단어 중 하나라도 포함된 것을 우선 + 나머지도 표시
+            const keywords = keyword.trim().split(/\s+/).filter(Boolean).map(k => k.toLowerCase());
+            const scored = fbData.data.items.map((item: BidItem) => {
+              const text = `${item.title} ${item.organization} ${item.demandOrg} ${item.description || ''}`.toLowerCase();
+              const score = keywords.reduce((acc: number, kw: string) => acc + (text.includes(kw) ? 10 : 0), 0);
+              return { item, score };
+            });
+            scored.sort((a: {score: number}, b: {score: number}) => b.score - a.score);
+            setFallbackItems(scored.slice(0, 20).map((s: {item: BidItem}) => s.item));
+            setIsFallback(true);
+          } else {
+            setFallbackItems([]);
+            setIsFallback(false);
+          }
+        } catch {
+          setFallbackItems([]);
+          setIsFallback(false);
+        }
+      } else {
+        setFallbackItems([]);
+        setIsFallback(false);
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '알 수 없는 에러';
-      console.error('Fetch error:', errorMsg);
-
-      // API 에러 시 데모 데이터 표시
+      console.warn('Fetch fallback triggered:', errorMsg);
       setError(errorMsg);
       setIsDemo(true);
-
-      // 데모 데이터 필터링 + 최신순 정렬
-      let filtered = [...DEMO_ITEMS];
-      if (aiOnly) filtered = filtered.filter(i => i.isAiRelated);
-      if (category !== 'all') filtered = filtered.filter(i => i.category === category);
-      if (keyword) {
-        const kw = keyword.toLowerCase();
-        filtered = filtered.filter(i =>
-          i.title.toLowerCase().includes(kw) ||
-          i.organization.toLowerCase().includes(kw)
-        );
-      }
-
-      // 최신순 정렬 (noticeDt 기준 내림차순)
-      filtered.sort((a, b) => {
-        const dateA = a.noticeDt || '';
-        const dateB = b.noticeDt || '';
-        return dateB.localeCompare(dateA);
-      });
-
-      setItems(filtered.slice((page - 1) * pageSize, page * pageSize));
-      setStats({
-        total: DEMO_ITEMS.length,
-        aiRelated: DEMO_ITEMS.filter(i => i.isAiRelated).length,
-        byCategory: {
-          service: DEMO_ITEMS.filter(i => i.category === 'service').length,
-          construction: DEMO_ITEMS.filter(i => i.category === 'construction').length,
-          thing: DEMO_ITEMS.filter(i => i.category === 'thing').length,
-          etc: DEMO_ITEMS.filter(i => i.category === 'etc').length,
-        },
-        filtered: filtered.length,
-      });
-      setTotalPages(Math.ceil(filtered.length / pageSize));
+      setItems([]);
+      setFallbackItems([]);
+      setIsFallback(false);
+      setStats({ total: 0, aiRelated: 0, byCategory: {}, filtered: 0, bySource: {} });
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, category, aiOnly, keyword, page]);
+  };
 
+  // 모든 필터 상태 변경 시 debounce 검색 수행
   useEffect(() => {
-    fetchBids();
-  }, [fetchBids]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchBids();
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate, category, aiOnly, page, keyword, activeSourceTab]);
 
   const handleSearch = () => {
     setPage(1);
-    fetchBids();
   };
 
-  // 빠른 날짜 범위 선택 핸들러 (종료일 기준으로 시작일 역산)
-  const handleQuickDate = (days: number) => {
-    setStartDate(getDateNDaysAgo(days));
-    setEndDate(getToday());
+  const handleKeywordChipClick = (kw: string) => {
+    setKeyword(prev => {
+      const words = prev.trim().split(/\s+/).filter(Boolean);
+      const kwLower = kw.toLowerCase();
+      const idx = words.findIndex(w => w.toLowerCase() === kwLower);
+      if (idx >= 0) {
+        words.splice(idx, 1);
+      } else {
+        words.push(kw);
+      }
+      return words.join(' ');
+    });
     setPage(1);
   };
 
-  // 현재 선택된 빠른 날짜 옵션 확인
-  const activeQuickDays = QUICK_DATE_OPTIONS.find(
-    opt => startDate === getDateNDaysAgo(opt.days) && endDate === getToday()
-  )?.days ?? null;
+  const handleSourceTabClick = (source: 'all' | SourceId) => {
+    setActiveSourceTab(source);
+    setPage(1);
+  };
 
   const sendSlackNotification = async () => {
     setSendingSlack(true);
     try {
       const res = await fetch('/api/slack-notify', { method: 'POST' });
       const data = await res.json();
-
       if (data.success) {
         showToast(`✅ 슬랙 전송 완료! (${data.itemCount}건)`, 'success');
       } else {
         showToast(`❌ ${data.error}`, 'error');
       }
-    } catch (err) {
+    } catch {
       showToast('❌ 슬랙 전송 실패', 'error');
     } finally {
       setSendingSlack(false);
     }
   };
 
-  // 초안 모달 열기
   const openDraftModal = (item: BidItem) => {
     setDraftItem(item);
     setDraftContent('');
     setDraftError(null);
     setDraftLoading(false);
-    setRfpContext('');
-    setAdditionalNotes('');
-    setIsEditing(false);
     setSelectedItem(null);
   };
 
-  // 초안 생성 핸들러
   const handleGenerateDraft = async () => {
     if (!draftItem) return;
     setDraftLoading(true);
@@ -427,23 +325,20 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: draftItem.title,
-          organization: draftItem.organization,
-          demandOrg: draftItem.demandOrg,
-          bidMethod: draftItem.bidMethod,
-          contractMethod: draftItem.contractMethod,
-          estimatedPrice: draftItem.estimatedPrice ? formatPrice(draftItem.estimatedPrice) : undefined,
-          bidEndDt: draftItem.bidEndDt ? formatDisplayDate(draftItem.bidEndDt) : undefined,
-          rfpContext,
-          additionalNotes,
+          organization: draftItem.organization || '',
+          demandOrg: draftItem.demandOrg || '',
+          bidMethod: draftItem.bidMethod || '',
+          contractMethod: draftItem.contractMethod || '',
+          estimatedPrice: draftItem.estimatedPrice ? formatPrice(draftItem.estimatedPrice) : '',
+          bidEndDt: draftItem.bidEndDt ? formatDisplayDate(draftItem.bidEndDt) : '',
         }),
       });
 
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       setDraftContent(data.draft);
-      setIsEditing(false);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '초안 생성에 실패했습니다';
+      const errorMsg = err instanceof Error ? err.message : '작성 팁 생성에 실패했습니다';
       setDraftError(errorMsg);
     } finally {
       setDraftLoading(false);
@@ -455,216 +350,431 @@ export default function HomePage() {
     setDraftContent('');
     setDraftError(null);
     setDraftLoading(false);
-    setRfpContext('');
-    setAdditionalNotes('');
-    setIsEditing(false);
   };
 
-  const handleDownloadDocx = async () => {
-    if (!draftContent || !draftItem) return;
-    const { downloadAsDocx } = await import('@/lib/docx-export');
-    const filename = `제안서_${draftItem.title.slice(0, 30).replace(/[/\\?%*:|"<>]/g, '')}`;
-    await downloadAsDocx(draftContent, filename);
-    showToast('📥 docx 파일을 다운로드했습니다', 'success');
-  };
-
+  // 소스 정보 헬퍼
+  const getSourceInfo = (sourceId: string) => SOURCE_REGISTRY[sourceId as SourceId] || { icon: '📄', label: sourceId, color: '#64748b' };
 
   return (
     <div className="app-container">
-      {/* Header */}
-      <header className="app-header">
-        <div className="header-badge">
-          <span>🤖</span>
-          <span>AI 공고 모니터링 시스템</span>
+      {/* ═══ Header ═══ */}
+      <header style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        padding: '20px 0 24px',
+        borderBottom: '1px solid var(--border)',
+        marginBottom: 24,
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            background: 'var(--gradient-primary)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            marginBottom: 4,
+          }}>
+            📡 공공사업 통합 모니터
+          </h1>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            나라장터 · 기업마당 · NIPA · 행안부 · 서울AI 공고 통합 추적
+          </p>
         </div>
-        <h1>나라장터 AI 공고 모니터</h1>
-        <p className="subtitle">
-          공공조달 입찰공고에서 AI·디지털 관련 지원사업을 실시간으로 추적합니다
-        </p>
+        <button
+          className="btn btn-slack btn-sm"
+          onClick={sendSlackNotification}
+          disabled={sendingSlack}
+        >
+          {sendingSlack ? '⏳ 전송 중...' : '💬 슬랙 알림'}
+        </button>
       </header>
 
-      {/* Demo 모드 안내 */}
+      {/* ═══ 에러/데모 알림 ═══ */}
       {isDemo && (
-        <div className="error-banner">
-          <span className="error-icon">⚠️</span>
-          <div>
-            <strong>데모 모드로 실행 중입니다</strong>
-            <p style={{ marginTop: 4, fontSize: '0.85rem', opacity: 0.8 }}>
-              {error || 'API 키가 아직 활성화되지 않았습니다.'} data.go.kr API 키 활성화 후 실제 데이터가 표시됩니다.
-              (보통 신청 후 1~2시간 소요)
-            </p>
-          </div>
+        <div style={{
+          padding: '12px 16px',
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          borderRadius: 10,
+          marginBottom: 20,
+          fontSize: '0.85rem',
+          color: '#92400e',
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center',
+        }}>
+          <span>⚠️</span>
+          <span>일부 소스 연결 실패 — {error || 'API 키 미설정'}</span>
         </div>
       )}
 
-      {/* Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">📋 전체 공고</div>
-          <div className="stat-value">{stats.total}</div>
-        </div>
-        <div className="stat-card ai-stat">
-          <div className="stat-label">🤖 AI 관련 공고</div>
-          <div className="stat-value ai-value">{stats.aiRelated}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">🔧 용역</div>
-          <div className="stat-value">{stats.byCategory?.service || 0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">🏗️ 공사</div>
-          <div className="stat-value">{stats.byCategory?.construction || 0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">📦 물품</div>
-          <div className="stat-value">{stats.byCategory?.thing || 0}</div>
-        </div>
+      {/* ═══ 소스 탭 ═══ */}
+      <div className="source-tabs">
+        <button
+          className={`source-tab ${activeSourceTab === 'all' ? 'active' : ''}`}
+          onClick={() => handleSourceTabClick('all')}
+        >
+          📡 전체
+          {stats.total > 0 && <span className="source-count">{stats.total}</span>}
+        </button>
+        {ALL_SOURCES.map(sourceId => {
+          const info = SOURCE_REGISTRY[sourceId];
+          const count = stats.bySource?.[sourceId] || 0;
+          return (
+            <button
+              key={sourceId}
+              className={`source-tab ${activeSourceTab === sourceId ? 'active' : ''}`}
+              onClick={() => handleSourceTabClick(sourceId)}
+            >
+              {info.icon} {info.label}
+              {count > 0 && <span className="source-count">{count}</span>}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Filters — Toss Style */}
-      <div className="filter-section">
-        {/* 1행: 기간 선택 */}
-        <div className="filter-period-row">
-          <span className="filter-period-label">기간</span>
-          <div className="segment-control">
-            {QUICK_DATE_OPTIONS.map((opt) => (
-              <button
-                key={opt.days}
-                className={`segment-btn ${activeQuickDays === opt.days ? 'active' : ''}`}
-                onClick={() => handleQuickDate(opt.days)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <div className="date-range-inline">
-            <input
-              type="date"
-              className="date-input-compact"
-              value={formatDateInput(startDate)}
-              onChange={(e) => setStartDate(parseDateInput(e.target.value))}
-            />
-            <span className="date-separator">~</span>
-            <input
-              type="date"
-              className="date-input-compact"
-              value={formatDateInput(endDate)}
-              onChange={(e) => setEndDate(parseDateInput(e.target.value))}
-            />
-          </div>
-        </div>
 
-        {/* 2행: 검색바 */}
-        <div className="search-bar-row">
-          <div className="search-input-wrapper">
-            <span className="search-icon">🔍</span>
+
+
+
+      {/* ═══ 필터 영역 (검색 + 키워드 칩만) ═══ */}
+      <div style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        padding: '16px 20px',
+        marginBottom: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}>
+        {/* 검색 */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 200, position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: 12, fontSize: '0.85rem', opacity: 0.4, pointerEvents: 'none' }}>🔍</span>
             <input
               type="text"
-              className="search-input"
-              placeholder="공고명, 기관명으로 검색..."
+              placeholder="공고명, 기관명, 키워드 검색..."
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              style={{
+                width: '100%',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '8px 36px 8px 36px',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+                fontFamily: 'inherit',
+                outline: 'none',
+              }}
             />
             {keyword && (
-              <button className="search-clear" onClick={() => { setKeyword(''); setPage(1); }}>✕</button>
+              <button
+                onClick={() => { setKeyword(''); setPage(1); }}
+                style={{
+                  position: 'absolute', right: 8,
+                  width: 20, height: 20,
+                  border: 'none', borderRadius: '50%',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer', fontSize: '0.65rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >✕</button>
             )}
           </div>
-          <button className="btn btn-primary" onClick={handleSearch} disabled={loading}>
-            검색
-          </button>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            📅 오늘~3개월 후 공고 중
+          </div>
         </div>
 
-        {/* 3행: 필터 칩 + 액션 */}
-        <div className="filter-chips-row">
-          <div className="chip-group">
-            {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
-              <button
-                key={key}
-                className={`chip ${category === key ? 'chip-active' : ''}`}
-                onClick={() => { setCategory(key); setPage(1); }}
-              >
-                {label}
-              </button>
-            ))}
-            <span className="chip-divider" />
+        {/* 키워드 필터 칩 */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {KEYWORD_CHIPS.map((kw) => (
             <button
-              className={`chip ${aiOnly ? 'chip-ai-active' : ''}`}
-              onClick={() => { setAiOnly(!aiOnly); setPage(1); }}
+              key={kw}
+              onClick={() => handleKeywordChipClick(kw)}
+              style={{
+                padding: '5px 12px',
+                border: `1px solid ${syncedChips.has(kw) ? '#8b5cf6' : 'var(--border)'}`,
+                borderRadius: 20,
+                fontSize: '0.78rem',
+                fontWeight: syncedChips.has(kw) ? 600 : 500,
+                color: syncedChips.has(kw) ? '#8b5cf6' : 'var(--text-muted)',
+                background: syncedChips.has(kw) ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'all 0.15s',
+              }}
             >
-              🤖 AI만
+              #{kw}
             </button>
-          </div>
-          <button
-            className="btn btn-slack btn-sm"
-            onClick={sendSlackNotification}
-            disabled={sendingSlack}
-          >
-            {sendingSlack ? '⏳ 전송 중...' : '💬 슬랙 알림'}
-          </button>
+          ))}
         </div>
       </div>
 
-      {/* Results */}
+      {/* ═══ 결과 헤더 ═══ */}
+      {!loading && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+          fontSize: '0.85rem',
+          color: 'var(--text-secondary)',
+        }}>
+          <span>
+            검색결과 <strong style={{ color: 'var(--text-primary)' }}>{stats.filtered}</strong>건
+            {keyword && <span> · &quot;{keyword}&quot;</span>}
+            {activeSourceTab !== 'all' && (
+              <span> · {SOURCE_REGISTRY[activeSourceTab]?.icon} {SOURCE_REGISTRY[activeSourceTab]?.label}</span>
+            )}
+          </span>
+          {totalPages > 1 && <span>{page} / {totalPages} 페이지</span>}
+        </div>
+      )}
+
+      {/* ═══ 결과 목록 ═══ */}
       {loading ? (
-        <div className="loading-container">
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '80px 20px',
+          gap: 12,
+        }}>
           <div className="spinner" />
-          <p style={{ color: 'var(--text-secondary)' }}>공고를 불러오는 중...</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>공고를 불러오는 중...</p>
         </div>
       ) : items.length === 0 ? (
-        <div className="empty-state">
-          <div className="emoji">📭</div>
-          <h3>조건에 맞는 공고가 없습니다</h3>
-          <p>날짜 범위를 변경하거나 필터를 조정해보세요.</p>
+        <div>
+          {/* 유사 결과가 있으면 보여주기 */}
+          {isFallback && fallbackItems.length > 0 ? (
+            <div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '12px 16px',
+                marginBottom: 12,
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))',
+                borderRadius: 10,
+                border: '1px solid rgba(99,102,241,0.15)',
+              }}>
+                <span style={{ fontSize: '1.2rem' }}>🔍</span>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  <strong>&quot;{keyword}&quot;</strong> 정확 매칭 결과가 없어, <strong>유사 공고 {fallbackItems.length}건</strong>을 표시합니다
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                {KEYWORD_CHIPS.filter(kw => !keyword.toLowerCase().includes(kw.toLowerCase())).slice(0, 5).map(kw => (
+                  <button
+                    key={kw}
+                    onClick={() => { setKeyword(kw); setPage(1); }}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '0.8rem',
+                      borderRadius: 20,
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    #{kw} 로 검색
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {fallbackItems.map((item) => {
+                  const daysLeft = getDaysLeftLabel(item.bidEndDt);
+                  const srcInfo = getSourceInfo(item.source);
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedItem(item)}
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: `1px solid var(--border)`,
+                        borderLeft: `3px solid ${srcInfo.color}`,
+                        borderRadius: 10,
+                        padding: '14px 18px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        opacity: 0.85,
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.transform = 'translateX(3px)';
+                        (e.currentTarget as HTMLElement).style.opacity = '1';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.transform = '';
+                        (e.currentTarget as HTMLElement).style.opacity = '0.85';
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <span style={{
+                              fontSize: '0.65rem', padding: '2px 6px', borderRadius: 4,
+                              background: srcInfo.color + '18', color: srcInfo.color, fontWeight: 600,
+                            }}>
+                              {srcInfo.icon} {srcInfo.label}
+                            </span>
+                            {item.isPriority && <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: 4, background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', fontWeight: 600 }}>⭐ 우선</span>}
+                          </div>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, lineHeight: 1.4 }}>
+                            {item.title || '제목 없음'}
+                          </h4>
+                          <div style={{ display: 'flex', gap: 12, fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 6 }}>
+                            <span>🏛️ {item.organization || '-'}</span>
+                            <span>📅 {formatDisplayDate(item.noticeDt || item.registDt || '')}</span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: daysLeft.color, whiteSpace: 'nowrap' }}>
+                          {daysLeft.text}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              textAlign: 'center',
+              padding: '60px 20px',
+              color: 'var(--text-muted)',
+            }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
+              <h3 style={{ fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>공고를 검색 중입니다</h3>
+              <p style={{ fontSize: '0.9rem', marginBottom: 16 }}>날짜 범위를 넓히거나 다른 키워드를 선택해보세요.</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                {KEYWORD_CHIPS.slice(0, 6).map(kw => (
+                  <button
+                    key={kw}
+                    onClick={() => { setKeyword(kw); setPage(1); }}
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: '0.85rem',
+                      borderRadius: 20,
+                      border: '1px solid rgba(99,102,241,0.3)',
+                      background: 'rgba(99,102,241,0.06)',
+                      color: '#6366f1',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    #{kw}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            marginBottom: 16, color: 'var(--text-secondary)', fontSize: '0.9rem'
-          }}>
-            <span>
-              총 <strong style={{ color: 'var(--text-primary)' }}>{stats.filtered}</strong>건
-              {aiOnly && <> (AI 관련 <strong style={{ color: 'var(--accent-light)' }}>{stats.aiRelated}</strong>건)</>}
-            </span>
-            <span>{page} / {totalPages} 페이지</span>
-          </div>
-
-          <div className="bid-list">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className={`bid-card ${item.isAiRelated ? 'ai-related' : ''}`}
-                onClick={() => setSelectedItem(item)}
-              >
-                <div className="bid-card-header">
-                  <div className="bid-title">
-                    <a
-                      href={item.detailUrl || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {item.title}
-                    </a>
-                  </div>
-                  <div className="bid-badges">
-                    {item.isPriority && <span className="badge badge-priority">🔴 알림</span>}
-                    {item.isAiRelated && <span className="badge badge-ai">🤖 AI</span>}
-                    <span className={`badge ${CATEGORY_BADGE_CLASS[item.category] || 'badge-etc'}`}>
-                      {CATEGORY_LABELS[item.category] || item.category}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {items.map((item) => {
+              const daysLeft = getDaysLeftLabel(item.bidEndDt);
+              const srcInfo = getSourceInfo(item.source);
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedItem(item)}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: `1px solid ${item.isPriority ? 'rgba(139, 92, 246, 0.3)' : 'var(--border)'}`,
+                    borderLeft: item.isAiRelated ? `3px solid ${srcInfo.color}` : '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: '14px 18px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.transform = 'translateX(3px)';
+                    (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.transform = '';
+                    (e.currentTarget as HTMLElement).style.boxShadow = '';
+                  }}
+                >
+                  {/* 제목 + D-day */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <a
+                        href={item.detailUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          fontSize: '0.95rem',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          textDecoration: 'none',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {item.title}
+                      </a>
+                    </div>
+                    <span style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      color: daysLeft.color,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      padding: '2px 8px',
+                      borderRadius: 6,
+                      background: daysLeft.text === '마감' ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                    }}>
+                      {daysLeft.text}
                     </span>
+                  </div>
+
+                  {/* 메타 정보 */}
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px 16px',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    alignItems: 'center',
+                  }}>
+                    {/* 소스 뱃지 */}
+                    <span className={`source-badge source-badge-${item.source}`}>
+                      {srcInfo.icon} {srcInfo.label}
+                    </span>
+                    <span>{CATEGORY_ICONS[item.category] || '📄'} {CATEGORY_LABELS[item.category]}</span>
+                    <span>🏢 {item.organization || '미공개'}</span>
+                    <span>📅 {formatDisplayDate(item.bidEndDt) || '-'}</span>
+                    {item.estimatedPrice && <span>💰 {formatPrice(item.estimatedPrice)}</span>}
+                    {item.isPriority && <span style={{ color: '#ef4444', fontWeight: 600 }}>🔴 우선</span>}
                     {item.matchedKeywords.length > 0 && (
-                      <span className="matched-keywords">
+                      <span style={{ display: 'flex', gap: 4 }}>
                         {item.matchedKeywords.map(kw => (
-                          <span 
-                            key={kw} 
-                            className="keyword-tag" 
-                            style={{ cursor: 'pointer' }}
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setKeyword(kw); 
-                              setPage(1); 
+                          <span
+                            key={kw}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleKeywordChipClick(kw);
+                            }}
+                            style={{
+                              padding: '1px 8px',
+                              borderRadius: 12,
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              color: '#8b5cf6',
+                              background: 'rgba(139, 92, 246, 0.1)',
+                              cursor: 'pointer',
                             }}
                           >
                             {kw}
@@ -674,48 +784,20 @@ export default function HomePage() {
                     )}
                   </div>
                 </div>
-                <div className="bid-meta">
-                  <div className="bid-meta-item">
-                    <span className="icon">🏢</span>
-                    <span>{item.organization}</span>
-                  </div>
-                  <div className="bid-meta-item">
-                    <span className="icon">📅</span>
-                    <span className="label">공고일</span>
-                    <span>{formatDisplayDate(item.noticeDt)}</span>
-                  </div>
-                  <div className="bid-meta-item">
-                    <span className="icon">⏰</span>
-                    <span className="label">마감</span>
-                    <span>{formatDisplayDate(item.bidEndDt)}</span>
-                  </div>
-                  {item.estimatedPrice && (
-                    <div className="bid-meta-item">
-                      <span className="icon">💰</span>
-                      <span>{formatPrice(item.estimatedPrice)}</span>
-                    </div>
-                  )}
-                  <div className="bid-meta-item">
-                    <span className="icon">📝</span>
-                    <span>{item.contractMethod}</span>
-                  </div>
-                </div>
-                {/* 초안 작성 버튼 */}
-                <div className="bid-card-actions" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    className="btn btn-draft btn-sm"
-                    onClick={() => openDraftModal(item)}
-                  >
-                    ✍️ 초안 작성
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Pagination */}
+          {/* 페이지네이션 */}
           {totalPages > 1 && (
-            <div className="pagination">
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 24,
+              padding: 12,
+            }}>
               <button
                 className="page-btn"
                 disabled={page <= 1}
@@ -723,19 +805,16 @@ export default function HomePage() {
               >
                 ‹
               </button>
-              {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
-                const p = i + 1;
-                return (
-                  <button
-                    key={p}
-                    className={`page-btn ${page === p ? 'active' : ''}`}
-                    onClick={() => setPage(p)}
-                  >
-                    {p}
-                  </button>
-                );
-              })}
-              <span className="page-info">{page} / {totalPages}</span>
+              {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  className={`page-btn ${page === p ? 'active' : ''}`}
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </button>
+              ))}
+              {totalPages > 10 && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>...</span>}
               <button
                 className="page-btn"
                 disabled={page >= totalPages}
@@ -748,33 +827,40 @@ export default function HomePage() {
         </>
       )}
 
-      {/* Detail Modal */}
+      {/* ═══ Detail Modal ═══ */}
       {selectedItem && (
         <div className="modal-overlay" onClick={() => setSelectedItem(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelectedItem(null)}>✕</button>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-              {selectedItem.isPriority && <span className="badge badge-priority">🔴 자동 알림 대상</span>}
-              {selectedItem.isAiRelated && <span className="badge badge-ai">🤖 AI 관련</span>}
-              <span className={`badge ${CATEGORY_BADGE_CLASS[selectedItem.category] || 'badge-etc'}`}>
+              {/* 소스 뱃지 */}
+              <span className={`source-badge source-badge-${selectedItem.source}`}>
+                {getSourceInfo(selectedItem.source).icon} {selectedItem.sourceLabel}
+              </span>
+              {selectedItem.isPriority && <span className="badge badge-priority">🔴 우선 공고</span>}
+              {selectedItem.isAiRelated && <span className="badge badge-ai">🤖 AI</span>}
+              <span className={`badge badge-${selectedItem.category === 'service' ? 'service' : selectedItem.category === 'construction' ? 'construction' : selectedItem.category === 'thing' ? 'thing' : 'etc'}`}>
                 {CATEGORY_LABELS[selectedItem.category]}
               </span>
-              {selectedItem.noticeKind && (
-                <span className="badge badge-etc">{selectedItem.noticeKind}</span>
-              )}
               {selectedItem.matchedKeywords.length > 0 && (
                 <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {selectedItem.matchedKeywords.map(kw => (
-                    <span 
-                      key={kw} 
-                      className="keyword-tag" 
-                      style={{ cursor: 'pointer' }}
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setKeyword(kw); 
-                        setPage(1); 
+                    <span
+                      key={kw}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleKeywordChipClick(kw);
                         setSelectedItem(null);
+                      }}
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: 12,
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: '#8b5cf6',
+                        background: 'rgba(139, 92, 246, 0.1)',
+                        cursor: 'pointer',
                       }}
                     >
                       {kw}
@@ -787,41 +873,64 @@ export default function HomePage() {
             <h2 className="modal-title">{selectedItem.title}</h2>
 
             <div className="detail-grid">
-              <span className="detail-label">공고번호</span>
-              <span className="detail-value">{selectedItem.bidNtceNo}-{selectedItem.bidNtceOrd}</span>
+              {selectedItem.bidNtceNo && (
+                <>
+                  <span className="detail-label">공고번호</span>
+                  <span className="detail-value">{selectedItem.bidNtceNo}-{selectedItem.bidNtceOrd}</span>
+                </>
+              )}
+
+              <span className="detail-label">출처</span>
+              <span className="detail-value">{getSourceInfo(selectedItem.source).icon} {selectedItem.sourceLabel}</span>
 
               <span className="detail-label">공고기관</span>
-              <span className="detail-value">{selectedItem.organization}</span>
+              <span className="detail-value">{selectedItem.organization || '미공개'}</span>
 
               <span className="detail-label">수요기관</span>
-              <span className="detail-value">{selectedItem.demandOrg}</span>
+              <span className="detail-value">{selectedItem.demandOrg || selectedItem.organization || '미공개'}</span>
 
               <span className="detail-label">공고일시</span>
               <span className="detail-value">{formatDisplayDate(selectedItem.noticeDt)}</span>
 
-              <span className="detail-label">입찰개시</span>
-              <span className="detail-value">{formatDisplayDate(selectedItem.bidStartDt)}</span>
+              {selectedItem.bidStartDt && (
+                <>
+                  <span className="detail-label">입찰개시</span>
+                  <span className="detail-value">{formatDisplayDate(selectedItem.bidStartDt)}</span>
+                </>
+              )}
 
-              <span className="detail-label">입찰마감</span>
-              <span className="detail-value" style={{ color: '#fbbf24', fontWeight: 600 }}>
-                {formatDisplayDate(selectedItem.bidEndDt)}
+              {selectedItem.bidEndDt && (
+                <>
+                  <span className="detail-label">입찰마감</span>
+                  <span className="detail-value" style={{ color: '#ef4444', fontWeight: 600 }}>
+                    {formatDisplayDate(selectedItem.bidEndDt)}
+                  </span>
+                </>
+              )}
+
+              {selectedItem.bidMethod && (
+                <>
+                  <span className="detail-label">입찰방법</span>
+                  <span className="detail-value">{selectedItem.bidMethod}</span>
+                </>
+              )}
+
+              {selectedItem.contractMethod && (
+                <>
+                  <span className="detail-label">계약방법</span>
+                  <span className="detail-value">{selectedItem.contractMethod}</span>
+                </>
+              )}
+
+              <span className="detail-label">추정가격</span>
+              <span className="detail-value" style={{ color: '#10b981', fontWeight: 600 }}>
+                {selectedItem.estimatedPrice ? formatPrice(selectedItem.estimatedPrice) : '미공개'}
               </span>
 
-              <span className="detail-label">등록일시</span>
-              <span className="detail-value">{formatDisplayDate(selectedItem.registDt)}</span>
-
-              <span className="detail-label">입찰방법</span>
-              <span className="detail-value">{selectedItem.bidMethod}</span>
-
-              <span className="detail-label">계약방법</span>
-              <span className="detail-value">{selectedItem.contractMethod}</span>
-
-              {selectedItem.estimatedPrice && (
+              {selectedItem.status && (
                 <>
-                  <span className="detail-label">추정가격</span>
-                  <span className="detail-value" style={{ color: '#34d399', fontWeight: 600 }}>
-                    {formatPrice(selectedItem.estimatedPrice)}
-                  </span>
+                  <span className="detail-label">상태</span>
+                  <span className="detail-value">{selectedItem.status}</span>
                 </>
               )}
             </div>
@@ -834,20 +943,20 @@ export default function HomePage() {
                   rel="noopener noreferrer"
                   className="btn btn-primary"
                 >
-                  🔗 나라장터에서 보기
+                  🔗 원문 보기
                 </a>
               )}
               <button
                 className="btn btn-draft"
                 onClick={() => openDraftModal(selectedItem)}
               >
-                ✍️ 초안 작성하기
+                💡 작성 팁
               </button>
               <button
                 className="btn btn-secondary"
                 onClick={() => {
                   navigator.clipboard.writeText(
-                    `${selectedItem.title}\n공고번호: ${selectedItem.bidNtceNo}\n기관: ${selectedItem.organization}\n마감: ${formatDisplayDate(selectedItem.bidEndDt)}\n${selectedItem.detailUrl || ''}`
+                    `${selectedItem.title}\n출처: ${selectedItem.sourceLabel}\n기관: ${selectedItem.organization}\n마감: ${formatDisplayDate(selectedItem.bidEndDt)}\n${selectedItem.detailUrl || ''}`
                   );
                   showToast('📋 클립보드에 복사되었습니다', 'success');
                 }}
@@ -859,162 +968,81 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Draft Modal */}
+      {/* ═══ 작성 팁 Modal ═══ */}
       {draftItem && (
         <div className="modal-overlay" onClick={closeDraftModal}>
           <div className="draft-modal" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={closeDraftModal}>✕</button>
 
             <div className="draft-header">
-              <div className="draft-header-badge">
-                <span>✍️</span>
-                <span>AI 제안서 초안</span>
-              </div>
-              <h2 className="draft-title">{draftItem.title}</h2>
-              <p className="draft-subtitle">
-                {draftItem.organization} · {formatPrice(draftItem.estimatedPrice)}
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: 4 }}>💡 작성 팁</h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {draftItem.title}
+              </p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                {getSourceInfo(draftItem.source).icon} {draftItem.sourceLabel} · {draftItem.organization} · {draftItem.estimatedPrice ? formatPrice(draftItem.estimatedPrice) : '가격 미정'}
               </p>
             </div>
 
-            {/* RFP 입력 영역  — 항상 표시 */}
-            {!draftContent && !draftLoading && (
-              <div className="draft-setup">
-                <div className="draft-section">
-                  <h3 className="draft-section-title">
-                    📄 제안요청서(RFP) / 요구사항 입력
-                    <span className="optional-badge">선택사항</span>
-                  </h3>
-                  <p className="draft-section-hint">
-                    공고 내 제안요청서, 과업내용서, 평가기준 등을 붙여넣으면<br />
-                    AI가 해당 내용을 반영하여 더 정확한 초안을 생성합니다.
-                  </p>
-                  <textarea
-                    className="rfp-textarea"
-                    placeholder={"여기에 RFP, 과업내용서, 평가기준, 요구사항 등을 붙여넣으세요...\n\n입력하지 않아도 공고 제목 기반으로 초안을 생성합니다."}
-                    value={rfpContext}
-                    onChange={(e) => setRfpContext(e.target.value)}
-                    rows={6}
-                  />
-                  {rfpContext && (
-                    <div className="rfp-char-count">
-                      {rfpContext.length.toLocaleString()}/10,000자
-                    </div>
-                  )}
-                </div>
-
-                <div className="draft-setup-actions">
-                  <button className="btn btn-secondary" onClick={closeDraftModal}>
-                    취소
-                  </button>
+            {!draftContent && !draftLoading && !draftError && (
+              <div style={{ padding: '24px 0', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+                  이 공고에 대한 제안서 작성 전략,<br/>추천 목차, 주의사항을 AI가 분석해드립니다.
+                </p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button className="btn btn-secondary" onClick={closeDraftModal}>취소</button>
                   <button className="btn btn-draft btn-generate" onClick={handleGenerateDraft}>
-                    🤖 AI 초안 생성하기
+                    🤖 작성 팁 받기
                   </button>
                 </div>
               </div>
             )}
 
-            {/* 로딩 */}
             {draftLoading && (
               <div className="draft-loading">
-                <div className="draft-spinner">
-                  <div className="spinner" />
-                </div>
-                <p className="draft-loading-text">
-                  🤖 Gemini AI가 기술+사업 통합 제안서 초안을 작성하고 있습니다...
-                </p>
-                <p className="draft-loading-sub">
-                  {rfpContext ? 'RFP 내용 + GenOS 역량을 반영합니다' : '공고 제목 + GenOS 역량을 기반으로 생성합니다'} (약 15~30초)
-                </p>
+                <div className="draft-spinner"><div className="spinner" /></div>
+                <p className="draft-loading-text">🤖 공고를 분석하고 있습니다...</p>
+                <p className="draft-loading-sub">약 5~10초 소요</p>
               </div>
             )}
 
-            {/* 에러 */}
             {draftError && (
               <div className="draft-error">
                 <span className="error-icon">❌</span>
                 <div>
-                  <strong>초안 생성 실패</strong>
+                  <strong>팁 생성 실패</strong>
                   <p>{draftError}</p>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setDraftError(null)}>← 다시 시도</button>
                 </div>
               </div>
             )}
 
-            {/* 결과 — 미리보기/편집 + 다운로드 + 추가입력 재생성 */}
             {draftContent && (
               <>
                 <div className="draft-actions-top">
                   <button className="btn btn-primary btn-sm" onClick={() => {
                     navigator.clipboard.writeText(draftContent);
-                    showToast('📋 초안이 클립보드에 복사되었습니다', 'success');
-                  }}>
-                    📋 복사
-                  </button>
+                    showToast('📋 작성 팁이 복사되었습니다', 'success');
+                  }}>📋 복사</button>
                   <button
-                    className={`btn btn-sm ${isEditing ? 'btn-draft' : 'btn-secondary'}`}
-                    onClick={() => setIsEditing(!isEditing)}
-                  >
-                    {isEditing ? '��️ 미리보기' : '✏️ 직접 수정'}
-                  </button>
-                  <button className="btn btn-sm btn-secondary" onClick={handleDownloadDocx}>
-                    📥 다운로드 (.docx)
-                  </button>
+                    className="btn btn-sm btn-secondary"
+                    onClick={handleGenerateDraft}
+                    disabled={draftLoading}
+                  >🔄 다시 분석</button>
                 </div>
 
                 <div className="draft-content">
-                  {isEditing ? (
-                    <textarea
-                      className="draft-edit-textarea"
-                      value={draftContent}
-                      onChange={(e) => setDraftContent(e.target.value)}
-                    />
-                  ) : (
-                    <div className="draft-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(draftContent) }} />
-                  )}
-                </div>
-
-                {/* 추가 입력 + 재생성 */}
-                <div className="draft-regen-section">
-                  <h3 className="draft-section-title">💬 추가 요청사항</h3>
-                  <textarea
-                    className="rfp-textarea"
-                    placeholder={"수정하고 싶은 내용이나 추가 요청사항을 입력하세요...\n\n예시:\n- 인력 구성을 5명에서 7명으로 늘려줘\n- 기대효과에 비용 절감 내용을 더 추가해줘\n- 보안 관련 내용을 강화해줘"}
-                    value={additionalNotes}
-                    onChange={(e) => setAdditionalNotes(e.target.value)}
-                    rows={4}
-                  />
-                  <div className="draft-setup-actions">
-                    <button
-                      className="btn btn-draft btn-generate"
-                      onClick={handleGenerateDraft}
-                      disabled={draftLoading}
-                    >
-                      🔄 재생성
-                    </button>
-                  </div>
-                </div>
-
-                <div className="draft-disclaimer">
-                  {isEditing
-                    ? '✏️ 마크다운 형식으로 직접 수정 중입니다. "미리보기"를 눌러 결과를 확인하세요.'
-                    : '⚠️ AI가 생성한 초안입니다. 수정 후 다운로드하거나 추가 요청사항을 입력하여 재생성하세요.'
-                  }
+                  <div className="draft-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(draftContent) }} />
                 </div>
               </>
-            )}
-
-            {/* 에러 시 돌아가기 */}
-            {(draftError && !draftContent) && (
-              <div className="draft-setup-actions">
-                <button className="btn btn-secondary" onClick={() => { setDraftError(null); }}>
-                  ← 다시 시도하기
-                </button>
-              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Toast */}
+      {/* ═══ Toast ═══ */}
       {toast && (
         <div className={`toast toast-${toast.type}`}>
           {toast.message}
@@ -1026,6 +1054,9 @@ export default function HomePage() {
 
 // 간단한 마크다운 → HTML 변환 (의존성 없이)
 function renderMarkdown(md: string): string {
+  // XSS 방지: HTML 태그 이스케이프
+  md = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
   let html = md
     // 코드 블럭
     .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
@@ -1035,7 +1066,6 @@ function renderMarkdown(md: string): string {
       if (cells.every(c => /^[\s-:]+$/.test(c))) {
         return ''; // 구분선 제거
       }
-      const isHeader = false;
       const tds = cells.map(c => `<td>${c.trim()}</td>`).join('');
       return `<tr>${tds}</tr>`;
     })

@@ -1,11 +1,11 @@
 /**
- * 제안서 초안 생성 API Route (v3 — 통합 초안)
+ * 입찰공고 작성 팁 생성 API Route
  * 
  * POST /api/generate-draft
  * Body: { title, organization, demandOrg, bidMethod, contractMethod,
- *         estimatedPrice, bidEndDt, rfpContext?, additionalNotes? }
+ *         estimatedPrice, bidEndDt }
  * 
- * 양식 선택 없이 기술 + 사업 통합 제안서를 자동 생성합니다.
+ * 공고 정보를 읽고, 어떤 식으로 제안서를 작성하면 좋을지 팁을 생성합니다.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -19,17 +19,11 @@ function isValidApiKey(key: string): boolean {
     return true;
 }
 
-export const maxDuration = 60; // Vercel 무료 티어 최대 60초 대기 허용
-
-async function getModelName(): Promise<string> {
-    // 할당량 소모를 막기 위해 매번 API를 찔러보지 않고, 속도가 압도적으로 빠른 최신 2.0-flash 모델을 기본 고정합니다.
-    return 'gemini-2.0-flash';
-}
+export const maxDuration = 30;
 
 async function callGemini(prompt: string): Promise<string> {
-    const modelName = await getModelName();
-    console.log(`[generate-draft] Using model: ${modelName}`);
-    const maxRetries = 2; // 한 번 429가 뜨면 30초(+a)를 대기해야 함. Vercel 타임아웃(60초)을 피하기 위해 2회만 시도.
+    const modelName = 'gemini-2.5-flash';
+    const maxRetries = 2;
     let lastError = '';
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -41,7 +35,7 @@ async function callGemini(prompt: string): Promise<string> {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
+                        generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
                     }),
                 }
             );
@@ -51,11 +45,8 @@ async function callGemini(prompt: string): Promise<string> {
                 if (text) return text;
                 lastError = 'AI가 텍스트를 생성하지 못했습니다.';
             } else if (res.status === 429 || res.status === 503) {
-                console.log(`[generate-draft] 429 Error. Waiting for 32 seconds to clear Google ratelimit penalty...`);
-                lastError = '무료 API 요청 제한(1분에 15회)을 초과했습니다. 약 30초 후 자동으로 재시도됩니다.';
-                // 구글은 429 에러 상태에서 다시 찌르면 패널티 타임(30초)을 초기화합니다.
-                // 따라서 짧게 여러 번 재시도하면 절대 안 되며, 무조건 30초 이상 (32000ms) 깔끔하게 대기해야 통과됩니다.
-                await new Promise(r => setTimeout(r, 32000));
+                lastError = '요청량이 많습니다. 잠시 후 재시도합니다.';
+                await new Promise(r => setTimeout(r, 2000));
                 continue;
             } else {
                 const err = await res.json().catch(() => ({}));
@@ -65,12 +56,10 @@ async function callGemini(prompt: string): Promise<string> {
             lastError = e instanceof Error ? e.message : String(e);
         }
     }
-    throw new Error(`요청량이 폭주하여 일시적으로 지연되고 있습니다. 잠시 후 5분 뒤에 다시 시도해주세요. (상세: ${lastError})`);
+    throw new Error(`AI 호출 실패: ${lastError}`);
 }
 
-// ─── 통합 프롬프트 ───
-
-function buildPrompt(params: {
+function buildTipsPrompt(params: {
     title: string;
     organization: string;
     demandOrg: string;
@@ -78,45 +67,11 @@ function buildPrompt(params: {
     contractMethod: string;
     estimatedPrice: string;
     bidEndDt: string;
-    rfpContext: string;
-    additionalNotes: string;
 }): string {
-    const { title, organization, demandOrg, bidMethod, contractMethod,
-        estimatedPrice, bidEndDt, rfpContext, additionalNotes } = params;
+    const { title, organization, demandOrg, bidMethod, contractMethod, estimatedPrice, bidEndDt } = params;
 
-    const companyProfile = getCompanyProfileText();
-
-    const rfpSection = rfpContext
-        ? `
-## 제안요청서(RFP) / 과업내용 / 평가기준
-아래는 공고의 세부 정보입니다. 이 내용을 **최우선으로 반영**하여 초안을 작성하세요.
-
-\`\`\`
-${rfpContext}
-\`\`\`
-
-⚠️ 평가항목이나 배점이 있다면 각 항목에 맞춰 내용을 구성하세요.
-⚠️ 과업 내용이나 요구사항을 수행 방안에 구체적으로 반영하세요.
-`
-        : `
-## 참고
-제안요청서(RFP) 원문이 제공되지 않았습니다. 공고명에서 핵심 내용을 추론하여 작성하세요.
-`;
-
-    const additionalSection = additionalNotes
-        ? `
-## 추가 요청사항
-사용자가 아래와 같은 추가 지시를 했습니다. 반드시 반영하세요:
-\`\`\`
-${additionalNotes}
-\`\`\`
-`
-        : '';
-
-    return `당신은 대한민국 공공조달 입찰 제안서 작성 전문가입니다.
-수십 건의 정부 입찰에 참여한 경험을 가진 제안서 컨설턴트로서,
-아래 입찰공고 정보와 **제안 회사의 제품·역량 정보**를 바탕으로
-**기술 역량 + 사업 수행 계획을 통합한 제안서** 초안을 작성해주세요.
+    return `당신은 대한민국 공공조달 입찰 제안서 컨설턴트입니다.
+아래 입찰공고 정보를 분석하여, 이 공고에 제안서를 작성할 때 **핵심 전략과 팁**을 간결하게 안내해주세요.
 
 ## 공고 정보
 - **공고명**: ${title}
@@ -127,85 +82,76 @@ ${additionalNotes}
 - **추정가격**: ${estimatedPrice || '미정'}
 - **입찰마감**: ${bidEndDt || '미정'}
 
-${rfpSection}
-${companyProfile}
-${additionalSection}
+## 작성 가이드
 
-## 작성할 섹션 (기술 + 사업 통합 제안서)
+아래 항목들을 **마크다운 형식으로 간결하게** 작성해주세요:
 
-다음 섹션 구조에 맞춰 작성해주세요:
+### 📌 공고 핵심 분석
+- 이 공고의 핵심 사업 내용이 무엇인지 2~3줄로 요약
+- 발주기관이 원하는 핵심 니즈 추정
 
-### Part 1. 사업 이해 및 분석 (400~500자)
-- 사업 배경 및 필요성
-- 발주기관 핵심 니즈 분석
-- 현황 진단 및 문제점 도출
-- 사업 목표 정의
+### 🎯 제안서 작성 전략
+- 어떤 포인트를 강조해야 하는지 (3~5가지 핵심 포인트)
+- 차별화할 수 있는 요소
+- 피해야 할 흔한 실수
 
-### Part 2. 기술 접근 방법론 (500~700자)
-- 적용 기술 스택 및 아키텍처 (GenOS 플랫폼 기반)
-- 핵심 기술 요소 상세 설명
-- 기술적 차별화 포인트
-- 품질 확보 방안
+### 📝 추천 목차 구성
+- 이 공고에 적합한 제안서 목차 구성안 (7~10개 항목)
+- 각 항목별 핵심 작성 가이드 1줄씩
 
-### Part 3. 수행 방안 (600~800자)
-- 단계별 수행 계획 (WBS 기반)
-- 각 단계별 주요 산출물
-- 요구사항 추적 및 검증 방안
-- 위험 관리 방안
+### ⚠️ 주의사항
+- 입찰방법(${bidMethod || '미상'})에 따른 유의점
+- 계약방법(${contractMethod || '미상'})에 따른 유의점
+- 일정 관련 주의사항
 
-### Part 4. 추진 일정 (표 형식)
-- 주요 단계별 상세 일정표 (마크다운 표)
-- 마일스톤 및 주요 체크포인트
-
-### Part 5. 투입 인력 및 조직 (400~500자)
-- 프로젝트 조직 구성 (PM, PL, 개발자, 인프라, QA 등)
-- 핵심 인력 자격 요건
-- 제논의 관련 경험 및 역량
-
-### Part 6. 사업 타당성 및 기대 효과 (400~500자)
-- 기술적 기대 효과 (성능, 효율성)
-- 비즈니스 기대 효과 (비용 절감, ROI)
-- 정량적 성과 목표 (수치화)
-- 유사 레퍼런스 성과 근거
-
-### Part 7. 유지보수 및 확장 계획 (300~400자)
-- 운영 안정화 및 기술 지원 계획
-- 교육 및 기술 이전 방안
-- 향후 확장 및 고도화 로드맵
+### 💡 유사 공고 키워드
+- 나라장터에서 비슷한 공고를 찾기 위한 검색 키워드 5개
 
 ## 작성 원칙
-1. 공고명과 RFP에서 사업 핵심을 정확히 파악하여 **맞춤형으로 작성**
-2. **구체적이고 실행 가능한 내용** 작성 (추상적 표현 금지)
-3. **제논의 GenOS 플랫폼 역량과 레퍼런스**를 자연스럽게 제안서 전반에 반영
-4. 전문적이고 신뢰감 있는 톤 유지
-5. 마크다운 형식 (## 헤딩, 볼드, 리스트, 표 적극 활용)
-6. 투입 인력은 제논의 실제 역량 기반으로 구성
-7. 기대효과는 GenOS 레퍼런스를 근거로 구체적 수치 제시
-8. ${rfpContext ? '제공된 RFP/평가기준에 맞춰 내용의 비중을 조절' : '공고명에서 핵심 키워드를 추출하여 사업 범위를 추정'}`;
+1. 실용적이고 바로 활용 가능한 팁 위주
+2. 600~800자 내외로 간결하게
+3. 마크다운 형식 (## 헤딩, 볼드, 리스트 활용)
+4. 전문적이되 쉬운 표현 사용`;
 }
 
 export async function POST(request: NextRequest) {
     if (!isValidApiKey(GEMINI_API_KEY)) {
         return NextResponse.json(
-            { success: false, error: 'Gemini API 키가 올바르지 않습니다. .env.local을 확인하세요.' },
+            { success: false, error: 'Gemini API 키가 설정되지 않았습니다.' },
             { status: 400 }
         );
     }
 
     try {
-        const body = await request.json();
-        const {
-            title, organization, demandOrg, bidMethod, contractMethod,
-            estimatedPrice, bidEndDt,
-            rfpContext = '',
-            additionalNotes = '',
-        } = body;
+        let title: string, organization: string, demandOrg: string,
+            bidMethod: string, contractMethod: string, estimatedPrice: string, bidEndDt: string;
+
+        const contentType = request.headers.get('content-type') || '';
+        if (contentType.includes('multipart/form-data')) {
+            const formData = await request.formData();
+            title = (formData.get('title') as string) || '';
+            organization = (formData.get('organization') as string) || '';
+            demandOrg = (formData.get('demandOrg') as string) || '';
+            bidMethod = (formData.get('bidMethod') as string) || '';
+            contractMethod = (formData.get('contractMethod') as string) || '';
+            estimatedPrice = (formData.get('estimatedPrice') as string) || '';
+            bidEndDt = (formData.get('bidEndDt') as string) || '';
+        } else {
+            const body = await request.json();
+            title = body.title || '';
+            organization = body.organization || '';
+            demandOrg = body.demandOrg || '';
+            bidMethod = body.bidMethod || '';
+            contractMethod = body.contractMethod || '';
+            estimatedPrice = body.estimatedPrice || '';
+            bidEndDt = body.bidEndDt || '';
+        }
 
         if (!title) {
             return NextResponse.json({ success: false, error: '공고명이 필요합니다.' }, { status: 400 });
         }
 
-        const prompt = buildPrompt({
+        const prompt = buildTipsPrompt({
             title,
             organization: organization || '미상',
             demandOrg: demandOrg || '미상',
@@ -213,8 +159,6 @@ export async function POST(request: NextRequest) {
             contractMethod: contractMethod || '미상',
             estimatedPrice: estimatedPrice || '미정',
             bidEndDt: bidEndDt || '미정',
-            rfpContext: rfpContext.trim().slice(0, 10000),
-            additionalNotes: additionalNotes.trim().slice(0, 3000),
         });
 
         const draft = await callGemini(prompt);
@@ -224,8 +168,6 @@ export async function POST(request: NextRequest) {
             draft,
             metadata: {
                 title,
-                hasRfpContext: !!rfpContext.trim(),
-                hasAdditionalNotes: !!additionalNotes.trim(),
                 generatedAt: new Date().toISOString(),
             },
         });
@@ -233,7 +175,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('[API /api/generate-draft] Error:', error);
         const msg = error instanceof Error ? error.message : 'Unknown error';
-        let userMessage = `초안 생성에 실패했습니다: ${msg}`;
+        let userMessage = `작성 팁 생성에 실패했습니다: ${msg}`;
         if (msg.includes('429') || msg.includes('할당량')) {
             userMessage = '⏳ Gemini API 할당량 초과. 잠시 후 다시 시도해주세요.';
         }

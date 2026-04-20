@@ -1,8 +1,33 @@
 /**
- * 나라장터 입찰공고 API 타입 정의
+ * 공공사업 통합 모니터 — 타입 정의
+ *
+ * 나라장터(G2B), 기업마당(bizinfo), NIPA, NIA, 행안부, 부산시 등
+ * 다양한 소스의 공고를 통합 관리하기 위한 타입 시스템입니다.
  */
 
-// API 응답 기본 구조
+// ─── 소스 식별자 ───
+export type SourceId = 'g2b' | 'bizinfo' | 'nipa' | 'nia' | 'mois' | 'busan' | 'seoul';
+
+export interface SourceInfo {
+    id: SourceId;
+    label: string;      // 예: "나라장터"
+    icon: string;        // 예: "🏛️"
+    color: string;       // 예: "#3b82f6"
+    bgColor: string;     // 예: "rgba(59, 130, 246, 0.1)"
+}
+
+// 소스 메타 정보 (UI에서 활용)
+export const SOURCE_REGISTRY: Record<SourceId, SourceInfo> = {
+    g2b: { id: 'g2b', label: '나라장터', icon: '🏛️', color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)' },
+    bizinfo: { id: 'bizinfo', label: '기업마당', icon: '🏢', color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)' },
+    nipa: { id: 'nipa', label: 'NIPA', icon: '💻', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' },
+    nia: { id: 'nia', label: 'NIA', icon: '🧠', color: '#06b6d4', bgColor: 'rgba(6, 182, 212, 0.1)' },
+    mois: { id: 'mois', label: '행안부', icon: '🏫', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)' },
+    busan: { id: 'busan', label: '부산시', icon: '🌊', color: '#6366f1', bgColor: 'rgba(99, 102, 241, 0.1)' },
+    seoul: { id: 'seoul', label: '서울AI', icon: '🗼', color: '#ec4899', bgColor: 'rgba(236, 72, 153, 0.1)' },
+};
+
+// ─── API 응답 기본 구조 (나라장터) ───
 export interface ApiResponse<T> {
     response: {
         header: {
@@ -18,6 +43,7 @@ export interface ApiResponse<T> {
     };
 }
 
+// ─── 나라장터 원본 타입 ───
 // 용역 입찰공고 (Services)
 export interface BidServiceItem {
     bidNtceNo: string;         // 입찰공고번호
@@ -59,10 +85,10 @@ export interface BidThingItem extends BidServiceItem {
 // 기타 입찰공고
 export interface BidEtcItem extends BidServiceItem { }
 
-// 통합 입찰공고 아이템 (UI에서 사용)
+// ─── 통합 공고 아이템 (UI에서 사용) ───
 export interface BidItem {
-    id: string;                // bidNtceNo + bidNtceOrd
-    bidNtceNo: string;         // 입찰공고번호
+    id: string;                // 소스별 고유 ID
+    bidNtceNo: string;         // 입찰공고번호 (나라장터 전용, 기타 소스는 빈 문자열)
     bidNtceOrd: string;        // 입찰공고차수
     title: string;             // 공고명
     organization: string;      // 공고기관명
@@ -80,9 +106,15 @@ export interface BidItem {
     isAiRelated: boolean;      // AI 관련 여부
     isPriority: boolean;       // 🔴 우선순위 알림 대상 여부
     matchedKeywords: string[]; // 매칭된 우선순위 키워드 목록
+
+    // ─── 멀티소스 확장 필드 ───
+    source: SourceId;          // 데이터 출처
+    sourceLabel: string;       // 출처 표시명 (예: "나라장터")
+    status?: string;           // 공고 상태 (접수중, 마감 등)
+    description?: string;      // 공고 요약/내용 (크롤링 시)
 }
 
-// 검색 필터
+// ─── 검색 필터 ───
 export interface SearchFilter {
     startDate: string;         // 조회 시작일 (YYYYMMDD)
     endDate: string;           // 조회 종료일 (YYYYMMDD)
@@ -91,9 +123,10 @@ export interface SearchFilter {
     aiOnly: boolean;           // AI 관련만 표시
     page: number;
     pageSize: number;
+    sources: SourceId[];       // 조회할 소스 목록
 }
 
-// 슬랙 메시지
+// ─── 슬랙 메시지 ───
 export interface SlackMessage {
     text: string;
     blocks?: SlackBlock[];

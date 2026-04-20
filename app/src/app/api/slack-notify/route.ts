@@ -120,26 +120,41 @@ function buildThreadMessage(item: BidItem, index: number) {
         ? `  [${item.matchedKeywords.join(', ')}]`
         : '';
 
-    // 접수기간 포맷
-    const period = item.bidStartDt && item.bidEndDt
-        ? `${formatDisplayDate(item.bidStartDt)} ~ ${formatDisplayDate(item.bidEndDt)}`
-        : '-';
+    // 접수기간 포맷 — 빈 값 처리
+    const startDt = item.bidStartDt ? formatDisplayDate(item.bidStartDt) : null;
+    const endDt = item.bidEndDt ? formatDisplayDate(item.bidEndDt) : null;
+    let period: string;
+    if (startDt && endDt) {
+        period = `${startDt} ~ ${endDt}`;
+    } else if (endDt) {
+        period = `~ ${endDt} (개시일 미정)`;
+    } else if (startDt) {
+        period = `${startDt} ~ (마감일 미정)`;
+    } else {
+        period = '접수기간 미공개';
+    }
+
+    // 빈 값 필드 기본값 채우기
+    const orgName = item.organization || '기관 미공개';
+    const demandOrgName = item.demandOrg || orgName; // 수요기관이 없으면 공고기관과 동일
+    const bidMethodStr = item.bidMethod || '미정';
+    const contractMethodStr = item.contractMethod || '미정';
+    const priceStr = item.estimatedPrice ? formatPrice(item.estimatedPrice) : '추정가격 미공개';
+    const noticeDateStr = item.noticeDt ? formatDisplayDate(item.noticeDt) : '미공개';
 
     const lines = [
-        `${priorityMarker}*${index}. ${item.title}*${keywordTags}`,
+        `${priorityMarker}*${index}. ${item.title || '제목 없음'}*${keywordTags}`,
         '',
-        `>📌 *공고번호:* ${item.bidNtceNo}-${item.bidNtceOrd}`,
-        `>🏛️ *주관기관:* ${item.organization || '-'}`,
-        `>🏢 *수요기관:* ${item.demandOrg || '-'}`,
+        `>📌 *공고번호:* ${item.bidNtceNo || '미정'}-${item.bidNtceOrd || '00'}`,
+        `>🏛️ *주관기관:* ${orgName}`,
+        `>🏢 *수요기관:* ${demandOrgName}`,
+        `>📅 *공고일시:* ${noticeDateStr}`,
         `>📅 *접수기간:* ${period}`,
-        `>📋 *입찰방법:* ${item.bidMethod || '-'}`,
-        `>📝 *계약방법:* ${item.contractMethod || '-'}`,
+        `>📋 *입찰방법:* ${bidMethodStr}`,
+        `>📝 *계약방법:* ${contractMethodStr}`,
         `>📂 *구분:* ${categoryLabel}`,
+        `>💰 *추정가격:* ${priceStr}`,
     ];
-
-    if (item.estimatedPrice) {
-        lines.push(`>💰 *추정가격:* ${formatPrice(item.estimatedPrice)}`);
-    }
 
     return {
         text: `${index}. ${item.title}`,
@@ -198,20 +213,35 @@ function buildWebhookFallback(items: BidItem[], dateStr: string) {
     items.forEach((item, idx) => {
         const detailUrl = item.detailUrl || getBidDetailUrl(item.bidNtceNo, item.bidNtceOrd);
         const priorityMarker = item.isPriority ? '🔴 ' : '';
-        const period = item.bidStartDt && item.bidEndDt
-            ? `${formatDisplayDate(item.bidStartDt)} ~ ${formatDisplayDate(item.bidEndDt)}`
-            : '-';
+        
+        // 접수기간 포맷 — 빈 값 처리
+        const startDt = item.bidStartDt ? formatDisplayDate(item.bidStartDt) : null;
+        const endDt = item.bidEndDt ? formatDisplayDate(item.bidEndDt) : null;
+        let period: string;
+        if (startDt && endDt) {
+            period = `${startDt} ~ ${endDt}`;
+        } else if (endDt) {
+            period = `~ ${endDt}`;
+        } else if (startDt) {
+            period = `${startDt} ~`;
+        } else {
+            period = '접수기간 미공개';
+        }
+
+        const orgName = item.organization || '기관 미공개';
+        const demandOrgName = item.demandOrg || orgName;
+        const priceStr = item.estimatedPrice ? formatPrice(item.estimatedPrice) : '추정가격 미공개';
 
         blocks.push({
             type: 'section',
             text: {
                 type: 'mrkdwn',
                 text: [
-                    `${priorityMarker}*${idx + 1}. <${detailUrl}|${item.title}>*`,
-                    `📌 ${item.organization} → ${item.demandOrg}`,
+                    `${priorityMarker}*${idx + 1}. <${detailUrl}|${item.title || '제목 없음'}>*`,
+                    `📌 ${orgName} → ${demandOrgName}`,
                     `📅 접수기간: ${period}`,
-                    item.estimatedPrice ? `💰 추정가격: ${formatPrice(item.estimatedPrice)}` : '',
-                ].filter(Boolean).join('\n'),
+                    `💰 추정가격: ${priceStr}`,
+                ].join('\n'),
             },
         });
     });
