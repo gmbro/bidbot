@@ -1,9 +1,15 @@
 /**
- * 행정안전부(MOIS) 새소식·알립니다 크롤러
+ * 행정안전부(MOIS) 새소식 크롤러
  *
- * 실제 확인된 URL:
- * - 알립니다(새소식): type013 게시판, bbsId=BBSMSTR_000000000006
- * - 훈령·예규·고시: type001, bbsId=BBSMSTR_000000000016
+ * 실제 HTML 구조:
+ * <a href="..?bbsId=BBSMSTR_000000000006&nttId=125058"
+ *    onclick="javascript:fn_egov_inqire_notice('125058', 'BBSMSTR_000000000006'); return false;">
+ *    제14회 범정부 공공데이터·AI 활용 창업경진대회 통합공고
+ * </a>
+ *
+ * → href에서 nttId 추출 + <a> 내부 텍스트에서 제목 추출
+ *
+ * AI/디지털 검색 URL만 사용하여 관련 공고만 수집합니다.
  */
 
 import type { BidItem, SearchFilter } from '@/types/bid';
@@ -15,31 +21,33 @@ import {
     matchPriorityKeywords,
 } from '../source-adapter';
 
+// AI/디지털 관련 검색 URL만 사용
 const MOIS_URLS = [
-    // 알립니다 (새소식) — 실제 확인된 게시판
-    'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006',
-    // 훈령·예규·고시
-    'https://www.mois.go.kr/frt/bbs/type001/commonSelectBoardList.do?bbsId=BBSMSTR_000000000016',
-    // AI/디지털 키워드 검색
-    'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006&searchCnd=0&searchWrd=AI',
-    'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006&searchCnd=0&searchWrd=%EB%94%94%EC%A7%80%ED%84%B8',
+    {
+        url: 'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006&searchCnd=0&searchWrd=AI',
+        bbsId: 'BBSMSTR_000000000006',
+    },
+    {
+        url: 'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006&searchCnd=0&searchWrd=%EB%94%94%EC%A7%80%ED%84%B8',
+        bbsId: 'BBSMSTR_000000000006',
+    },
+    {
+        url: 'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006&searchCnd=0&searchWrd=%ED%81%B4%EB%9D%BC%EC%9A%B0%EB%93%9C',
+        bbsId: 'BBSMSTR_000000000006',
+    },
 ];
 
-const MOIS_DETAIL_BASE = 'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardArticle.do?bbsId=BBSMSTR_000000000006&nttId=';
-
 function stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
 }
 
-/**
- * 행안부 공고 크롤링
- */
 async function crawlMois(): Promise<BidItem[]> {
     const allItems: BidItem[] = [];
+    const seen = new Set<string>();
 
-    for (const url of MOIS_URLS) {
+    for (const { url, bbsId } of MOIS_URLS) {
         try {
-            console.log(`[MOIS Crawler] ${url.substring(0, 80)}... 크롤링 시도`);
+            console.log(`[MOIS Crawler] ${url.substring(0, 100)}...`);
 
             const response = await fetch(url, {
                 headers: {
@@ -57,68 +65,59 @@ async function crawlMois(): Promise<BidItem[]> {
 
             const html = await response.text();
 
-            // 행안부 table 기반 게시판 파싱
-            const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-            let rowMatch;
-            let rowIndex = 0;
+            // 패턴 1: fn_egov_inqire_notice 링크에서 nttId + 제목 추출
+            // <a href="...nttId=125058" onclick="fn_egov_inqire_notice(...)">제목텍스트\n</a>
+            const linkPattern = /nttId=(\d+)[^>]*onclick="[^"]*fn_egov_inqire_notice[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+            let linkMatch;
 
-            while ((rowMatch = rowPattern.exec(html)) !== null) {
-                const rowContent = rowMatch[1];
-                if (rowContent.includes('<th')) continue;
+            while ((linkMatch = linkPattern.exec(html)) !== null) {
+                const nttId = linkMatch[1];
+                if (seen.has(nttId)) continue;
+                seen.add(nttId);
 
-                const tdPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-                const cells: string[] = [];
-                let tdMatch;
-                while ((tdMatch = tdPattern.exec(rowContent)) !== null) {
-                    cells.push(stripHtml(tdMatch[1]));
-                }
-
-                if (cells.length < 3) continue;
-
-                // 링크에서 nttId 추출
-                const linkPattern = /nttId=(\d+)/i;
-                const linkMatch = rowContent.match(linkPattern);
-                const nttId = linkMatch ? linkMatch[1] : '';
-
-                // href 전체 추출
-                const hrefPattern = /href=["']([^"']*nttId[^"']*)["']/i;
-                const hrefMatch = rowContent.match(hrefPattern);
-                const detailUrl = hrefMatch
-                    ? (hrefMatch[1].startsWith('http') ? hrefMatch[1] : `https://www.mois.go.kr${hrefMatch[1]}`)
-                    : (nttId ? `${MOIS_DETAIL_BASE}${nttId}` : undefined);
-
-                // 제목 추출 (a 태그 안의 텍스트 우선)
-                let title = '';
-                const aPattern = /<a[^>]*>([\s\S]*?)<\/a>/i;
-                const aMatch = rowContent.match(aPattern);
-                if (aMatch) title = stripHtml(aMatch[1]);
-                if (!title) title = cells[1] || cells[0] || '';
+                const title = stripHtml(linkMatch[2]);
                 if (!title || title.length < 5) continue;
 
-                // 날짜 추출
-                const dateStr = cells.find(c => /\d{4}[.\-/]\d{2}[.\-/]\d{2}/.test(c)) || '';
-                const cleanDate = dateStr.replace(/[^0-9]/g, '').substring(0, 8);
+                const detailUrl = `https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardArticle.do?bbsId=${bbsId}&nttId=${nttId}`;
 
                 allItems.push({
-                    id: `mois-${nttId || rowIndex}`,
+                    id: `mois-${nttId}`,
                     bidNtceNo: '', bidNtceOrd: '',
                     title,
                     organization: '행정안전부',
                     demandOrg: '행정안전부',
-                    noticeDt: cleanDate,
+                    noticeDt: '',
                     bidStartDt: '', bidEndDt: '',
-                    registDt: cleanDate,
+                    registDt: '',
                     bidMethod: '', contractMethod: '',
                     detailUrl,
                     category: 'service',
-                    isAiRelated: isAiRelated(title),
+                    isAiRelated: true, // AI/디지털 검색 결과이므로 관련성 보장
                     isPriority: isPriorityBid(title),
                     matchedKeywords: matchPriorityKeywords(title),
                     source: 'mois',
                     sourceLabel: '행안부',
                     status: '',
                 });
-                rowIndex++;
+            }
+
+            // 패턴 2: 날짜 추출 (테이블 행 내 날짜)
+            // <td ...>2026.04.18</td> 패턴
+            const datePattern = /(\d{4})[.\-/](\d{2})[.\-/](\d{2})/g;
+            const dates: string[] = [];
+            let dateMatch;
+            while ((dateMatch = datePattern.exec(html)) !== null) {
+                const d = `${dateMatch[1]}${dateMatch[2]}${dateMatch[3]}`;
+                if (d.startsWith('202')) dates.push(d);
+            }
+            // 날짜를 아이템에 매칭 (순서대로)
+            let dateIdx = 0;
+            for (const item of allItems) {
+                if (!item.noticeDt && dateIdx < dates.length) {
+                    item.noticeDt = dates[dateIdx];
+                    item.registDt = dates[dateIdx];
+                    dateIdx++;
+                }
             }
 
         } catch (error) {

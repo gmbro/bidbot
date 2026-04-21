@@ -117,8 +117,8 @@ export async function GET(request: NextRequest) {
                 allKws.forEach(kw => { if (searchText.includes(kw)) score += 3; });
                 // AI 관련이면 보너스
                 if (item.isAiRelated) score += 2;
-                // 소스 API에서 이미 키워드로 검색한 결과(bizinfo 등)는 최소 1점 보장
-                if (score === 0 && (item.source === 'bizinfo')) score = 1;
+                // 소스 API/크롤러에서 이미 키워드로 필터된 결과는 최소 1점 보장
+                if (score === 0 && ['bizinfo', 'nia', 'mois'].includes(item.source)) score = 1;
                 return { item, score };
             });
 

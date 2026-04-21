@@ -1,11 +1,11 @@
 /**
  * NIA(한국지능정보사회진흥원) 입찰공고 크롤러
  *
- * 작동 확인된 URL:
- * - 입찰공고: https://www.nia.or.kr/site/nia_kor/ex/bbs/List.do?cbIdx=78336
- * - 사업공고: https://www.nia.or.kr/site/nia_kor/ex/bbs/List.do?cbIdx=65772 (봇 차단)
+ * 실제 HTML 구조:
+ * <a href="#view" onclick="doBbsFView('78336','29293','16010100','29293');return false;"
+ *    title="[공모] 공공 병원정보시스템 AI 클라우드서비스 개발 검증 지원(새 글)-첨부파일 있음">
  *
- * cbIdx=78336은 서버사이드 렌더링이 되어 직접 크롤링 가능합니다.
+ * → doBbsFView(cbIdx, bcIdx, deptCode, parentSeq) 패턴에서 bcIdx + title 추출
  */
 
 import type { BidItem, SearchFilter } from '@/types/bid';
@@ -19,15 +19,20 @@ import {
 
 const NIA_URL = 'https://www.nia.or.kr/site/nia_kor/ex/bbs/List.do?cbIdx=78336';
 
-function stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+function cleanTitle(raw: string): string {
+    // "(새 글)-첨부파일 있음" 등 부가 텍스트 제거
+    return raw
+        .replace(/\(새\s*글\)/g, '')
+        .replace(/-?첨부파일\s*있음/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 async function crawlNia(): Promise<BidItem[]> {
-    const allItems: BidItem[] = [];
+    const items: BidItem[] = [];
 
     try {
-        console.log(`[NIA Crawler] ${NIA_URL.substring(0, 60)}... 크롤링 시도`);
+        console.log('[NIA Crawler] 크롤링 시도...');
 
         const response = await fetch(NIA_URL, {
             headers: {
@@ -45,64 +50,37 @@ async function crawlNia(): Promise<BidItem[]> {
         }
 
         const html = await response.text();
+        console.log(`[NIA Crawler] 응답 길이: ${html.length}`);
 
-        // 게시판 테이블 행 파싱
-        const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-        let rowMatch;
-        let rowIndex = 0;
+        // doBbsFView('cbIdx','bcIdx','deptCode','parentSeq') 패턴 + title 속성
+        const pattern = /doBbsFView\s*\(\s*'(\d+)'\s*,\s*'(\d+)'\s*,\s*'[^']*'\s*,\s*'[^']*'\s*\)[\s\S]*?title="([^"]+)"/gi;
 
-        while ((rowMatch = rowPattern.exec(html)) !== null) {
-            const rowContent = rowMatch[1];
-            if (rowContent.includes('<th')) continue;
+        let match;
+        const seen = new Set<string>();
 
-            // td 셀 추출
-            const tdPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-            const cells: string[] = [];
-            let tdMatch;
-            while ((tdMatch = tdPattern.exec(rowContent)) !== null) {
-                cells.push(stripHtml(tdMatch[1]));
-            }
+        while ((match = pattern.exec(html)) !== null) {
+            const cbIdx = match[1];
+            const bcIdx = match[2];
+            const rawTitle = match[3];
 
-            if (cells.length < 3) continue;
+            // 중복 방지 (같은 bcIdx)
+            if (seen.has(bcIdx)) continue;
+            seen.add(bcIdx);
 
-            // bcIdx 링크 추출
-            const linkPattern = /bcIdx=(\d+)/i;
-            const linkMatch = rowContent.match(linkPattern);
-            const bcIdx = linkMatch ? linkMatch[1] : '';
-
-            // 상세 URL 구성
-            let detailUrl: string | undefined;
-            if (bcIdx) {
-                detailUrl = `https://www.nia.or.kr/site/nia_kor/ex/bbs/View.do?cbIdx=78336&bcIdx=${bcIdx}`;
-            }
-
-            // 제목 추출 (a 태그)
-            let title = '';
-            const aPattern = /<a[^>]*>([\s\S]*?)<\/a>/i;
-            const aMatch = rowContent.match(aPattern);
-            if (aMatch) title = stripHtml(aMatch[1]);
-            if (!title) title = cells[1] || cells[0] || '';
+            const title = cleanTitle(rawTitle);
             if (!title || title.length < 5) continue;
 
-            // 날짜 추출
-            const dateStr = cells.find(c => /\d{4}[.\-/]\d{2}[.\-/]\d{2}/.test(c)) || '';
-            const cleanDate = dateStr.replace(/[^0-9]/g, '').substring(0, 8);
+            const detailUrl = `https://www.nia.or.kr/site/nia_kor/ex/bbs/View.do?cbIdx=${cbIdx}&bcIdx=${bcIdx}`;
 
-            // 상태 (접수/마감/진행 등)
-            const statusCell = cells.find(c => /접수|마감|진행|종료|공고/.test(c)) || '';
-
-            // 작성자/부서
-            const deptCell = cells.find(c => /센터|본부|실|부|팀/.test(c)) || '';
-
-            allItems.push({
-                id: `nia-${bcIdx || rowIndex}`,
+            items.push({
+                id: `nia-${bcIdx}`,
                 bidNtceNo: '', bidNtceOrd: '',
                 title,
                 organization: '한국지능정보사회진흥원(NIA)',
-                demandOrg: deptCell || 'NIA',
-                noticeDt: cleanDate,
+                demandOrg: 'NIA',
+                noticeDt: '',
                 bidStartDt: '', bidEndDt: '',
-                registDt: cleanDate,
+                registDt: '',
                 bidMethod: '', contractMethod: '',
                 detailUrl,
                 category: 'service',
@@ -111,17 +89,30 @@ async function crawlNia(): Promise<BidItem[]> {
                 matchedKeywords: matchPriorityKeywords(title),
                 source: 'nia',
                 sourceLabel: 'NIA',
-                status: statusCell,
+                status: '',
             });
-            rowIndex++;
+        }
+
+        // 날짜 추출 시도 (별도): <td> 안에 날짜 패턴 있으면 매칭
+        // NIA의 목록에는 날짜가 별도 <span>에 있을 수 있음
+        const datePattern = /<span[^>]*class="[^"]*date[^"]*"[^>]*>([^<]+)<\/span>/gi;
+        let dateMatch;
+        let dateIndex = 0;
+        while ((dateMatch = datePattern.exec(html)) !== null && dateIndex < items.length) {
+            const dateStr = dateMatch[1].replace(/[^0-9]/g, '').substring(0, 8);
+            if (dateStr.length >= 8) {
+                items[dateIndex].noticeDt = dateStr;
+                items[dateIndex].registDt = dateStr;
+            }
+            dateIndex++;
         }
 
     } catch (error) {
         console.error('[NIA Crawler] 크롤링 실패:', error);
     }
 
-    console.log(`[NIA Crawler] 총 ${allItems.length}건 수집 완료`);
-    return allItems;
+    console.log(`[NIA Crawler] 총 ${items.length}건 수집 완료`);
+    return items;
 }
 
 const niaAdapter: SourceAdapter = {
