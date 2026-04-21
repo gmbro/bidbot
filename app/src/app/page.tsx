@@ -398,13 +398,6 @@ export default function HomePage() {
             📡 공공사업 통합 모니터
           </h1>
         </div>
-        <button
-          className="btn btn-slack btn-sm"
-          onClick={sendSlackNotification}
-          disabled={sendingSlack}
-        >
-          {sendingSlack ? '⏳ 전송 중...' : '💬 슬랙 알림'}
-        </button>
       </header>
 
       {/* ═══ 에러/데모 알림 ═══ */}
