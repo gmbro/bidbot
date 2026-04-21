@@ -380,9 +380,6 @@ export default function HomePage() {
           }}>
             📡 공공사업 통합 모니터
           </h1>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            나라장터 · 기업마당 · NIPA · 행안부 · 서울AI 공고 통합 추적
-          </p>
         </div>
         <button
           className="btn btn-slack btn-sm"

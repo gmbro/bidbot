@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
 
             // 유사도 점수 부여
             const scored = filteredItems.map(item => {
-                const searchText = `${item.title} ${item.organization} ${item.demandOrg} ${item.description || ''}`.toLowerCase();
+                const searchText = `${item.title} ${item.organization} ${item.demandOrg} ${item.description || ''} ${item.sourceLabel || ''}`.toLowerCase();
                 let score = 0;
                 // 원본 키워드 정확 매칭: 10점
                 keywords.forEach(kw => { if (searchText.includes(kw)) score += 10; });
@@ -116,6 +116,8 @@ export async function GET(request: NextRequest) {
                 allKws.forEach(kw => { if (searchText.includes(kw)) score += 3; });
                 // AI 관련이면 보너스
                 if (item.isAiRelated) score += 2;
+                // 소스 API에서 이미 키워드로 검색한 결과(bizinfo 등)는 최소 1점 보장
+                if (score === 0 && (item.source === 'bizinfo')) score = 1;
                 return { item, score };
             });
 
