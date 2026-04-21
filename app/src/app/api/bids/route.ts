@@ -18,10 +18,9 @@ import '@/lib/bid-api';
 import '@/lib/bizinfo-api';
 import '@/lib/crawlers/nipa-crawler';
 import '@/lib/crawlers/nia-crawler';
-import '@/lib/crawlers/mois-crawler';
 import '@/lib/crawlers/seoul-crawler';
 
-const ALL_SOURCES: SourceId[] = ['g2b', 'bizinfo', 'nipa', 'nia', 'mois', 'seoul'];
+const ALL_SOURCES: SourceId[] = ['g2b', 'bizinfo', 'nipa', 'nia', 'seoul'];
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
