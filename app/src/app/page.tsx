@@ -23,7 +23,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 const KEYWORD_CHIPS = ['클라우드', 'AI', '생성형AI', '플랫폼', '에이전트', '데이터', '지능형', '디지털전환'];
 
-const ALL_SOURCES: SourceId[] = ['g2b', 'bizinfo', 'nipa', 'mois', 'seoul'];
+const ALL_SOURCES: SourceId[] = ['g2b', 'bizinfo', 'nipa', 'nia', 'mois', 'seoul'];
 
 // ─── 유틸리티 함수 ───
 

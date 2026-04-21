@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import '@/lib/bid-api';
 import '@/lib/bizinfo-api';
 import '@/lib/crawlers/nipa-crawler';
+import '@/lib/crawlers/nia-crawler';
 import '@/lib/crawlers/mois-crawler';
 import '@/lib/crawlers/seoul-crawler';
 import { fetchFromAllSources } from '@/lib/source-adapter';

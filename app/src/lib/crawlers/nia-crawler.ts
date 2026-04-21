@@ -1,11 +1,10 @@
 /**
- * NIA(한국지능정보사회진흥원) 사업공고 크롤러
+ * NIA(한국지능정보사회진흥원) 소스 어댑터
  *
- * NIA 홈페이지 게시판 URL:
- * - 사업공고: https://www.nia.or.kr/site/nia_kor/ex/bbs/List.do?cbIdx=65772
- * - 입찰공고: https://www.nia.or.kr/site/nia_kor/ex/bbs/List.do?cbIdx=65774
- *
- * ⚠️ NIA 사이트도 CSR 기반일 수 있어 빈 결과를 반환할 수 있습니다.
+ * NIA 웹사이트가 봇 접근을 차단하므로,
+ * 나라장터(G2B) API에서 NIA 발주 공고를 키워드 기반으로 수집합니다.
+ * NIA는 AI/데이터 관련 국가 사업을 총괄하므로
+ * "지능정보", "NIA", "한국지능" 등으로 검색합니다.
  */
 
 import type { BidItem, SearchFilter } from '@/types/bid';
@@ -17,124 +16,96 @@ import {
     matchPriorityKeywords,
 } from '../source-adapter';
 
-const NIA_URLS = [
-    'https://www.nia.or.kr/site/nia_kor/ex/bbs/List.do?cbIdx=65772',  // 사업공고
-    'https://www.nia.or.kr/site/nia_kor/ex/bbs/List.do?cbIdx=65774',  // 입찰공고
-];
+const BIZINFO_API_KEY = process.env.BIZINFO_API_KEY || '';
+const BIZINFO_API_URL = 'https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do';
 
-function stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-}
+async function fetchNiaFromBizinfo(): Promise<BidItem[]> {
+    if (!BIZINFO_API_KEY) return [];
 
-async function crawlNia(): Promise<BidItem[]> {
     const allItems: BidItem[] = [];
+    const keywords = ['NIA', '지능정보'];
 
-    for (const url of NIA_URLS) {
+    for (const kw of keywords) {
         try {
-            console.log(`[NIA Crawler] ${url.substring(0, 80)} 크롤링 시도...`);
+            const params = new URLSearchParams({
+                crtfcKey: BIZINFO_API_KEY,
+                dataType: 'json',
+                pageUnit: '30',
+                pageIndex: '1',
+                srchKeyword: kw,
+            });
+
+            const url = `${BIZINFO_API_URL}?${params.toString()}`;
+            console.log(`[NIA via Bizinfo] ${kw} 검색 시도...`);
 
             const response = await fetch(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml',
-                    'Accept-Language': 'ko-KR,ko;q=0.9',
-                },
+                headers: { 'Accept': 'application/json' },
                 next: { revalidate: 1800 },
             });
 
-            if (!response.ok) {
-                console.warn(`[NIA Crawler] 응답 실패: ${response.status}`);
-                continue;
-            }
+            if (!response.ok) continue;
 
-            const html = await response.text();
+            const data = await response.json();
+            let rawItems: any[] = [];
+            if (data.jsonArray) rawItems = data.jsonArray;
+            else if (Array.isArray(data)) rawItems = data;
 
-            // 테이블 파싱
-            const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-            let rowMatch;
-            let rowIndex = 0;
+            for (const item of rawItems) {
+                const title = item.pblancNm || '';
+                if (!title) continue;
 
-            while ((rowMatch = rowPattern.exec(html)) !== null) {
-                const rowContent = rowMatch[1];
-                if (rowContent.includes('<th')) continue;
+                // NIA/지능정보 관련 항목만
+                const text = `${title} ${item.jrsdInsttNm || ''} ${item.excInsttNm || ''}`.toLowerCase();
+                if (!text.includes('nia') && !text.includes('지능정보') && !text.includes('한국지능')) continue;
 
-                const tdPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-                const cells: string[] = [];
-                let tdMatch;
-                while ((tdMatch = tdPattern.exec(rowContent)) !== null) {
-                    cells.push(stripHtml(tdMatch[1]));
-                }
-
-                if (cells.length < 3) continue;
-
-                // bcIdx 링크 추출
-                const linkPattern = /bcIdx=(\d+)/i;
-                const linkMatch = rowContent.match(linkPattern);
-                const bcIdx = linkMatch ? linkMatch[1] : '';
-
-                // href 전체 추출
-                const hrefPattern = /href=["']([^"']*?)["']/i;
-                const hrefMatch = rowContent.match(hrefPattern);
-                let detailUrl: string | undefined;
-                if (hrefMatch) {
-                    detailUrl = hrefMatch[1].startsWith('http')
-                        ? hrefMatch[1]
-                        : `https://www.nia.or.kr${hrefMatch[1]}`;
-                } else if (bcIdx) {
-                    detailUrl = `https://www.nia.or.kr/site/nia_kor/ex/bbs/View.do?cbIdx=65772&bcIdx=${bcIdx}`;
-                }
-
-                // 제목
-                let title = '';
-                const aPattern = /<a[^>]*>([\s\S]*?)<\/a>/i;
-                const aMatch = rowContent.match(aPattern);
-                if (aMatch) title = stripHtml(aMatch[1]);
-                if (!title) title = cells[1] || cells[0] || '';
-                if (!title || title.length < 5) continue;
-
-                // 날짜
-                const dateStr = cells.find(c => /\d{4}[.\-/]\d{2}[.\-/]\d{2}/.test(c)) || '';
-                const cleanDate = dateStr.replace(/[^0-9]/g, '').substring(0, 8);
-
-                // 상태
-                const statusCell = cells.find(c => /접수|마감|진행|종료|공고/.test(c)) || '';
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+                const endDate = (item.reqstEndDe || '').replace(/[^0-9]/g, '').substring(0, 8);
+                if (endDate && endDate.length >= 8 && endDate < todayStr) continue;
 
                 allItems.push({
-                    id: `nia-${bcIdx || rowIndex}`,
+                    id: `nia-biz-${item.pblancId || allItems.length}`,
                     bidNtceNo: '', bidNtceOrd: '',
                     title,
-                    organization: '한국지능정보사회진흥원(NIA)',
-                    demandOrg: 'NIA',
-                    noticeDt: cleanDate,
-                    bidStartDt: '', bidEndDt: '',
-                    registDt: cleanDate,
+                    organization: item.jrsdInsttNm || 'NIA',
+                    demandOrg: item.excInsttNm || 'NIA',
+                    noticeDt: (item.creatDt || '').replace(/[^0-9]/g, '').substring(0, 8),
+                    bidStartDt: (item.reqstBeginDe || '').replace(/[^0-9]/g, '').substring(0, 8),
+                    bidEndDt: endDate,
+                    registDt: (item.creatDt || '').replace(/[^0-9]/g, '').substring(0, 8),
                     bidMethod: '', contractMethod: '',
-                    detailUrl,
+                    detailUrl: item.detailUrl || item.pblancUrl || undefined,
                     category: 'service',
                     isAiRelated: isAiRelated(title),
                     isPriority: isPriorityBid(title),
                     matchedKeywords: matchPriorityKeywords(title),
                     source: 'nia',
                     sourceLabel: 'NIA',
-                    status: statusCell,
+                    description: item.bsnsSumryCn || '',
                 });
-                rowIndex++;
             }
-
         } catch (error) {
-            console.error('[NIA Crawler] 크롤링 실패:', error);
+            console.error(`[NIA via Bizinfo] ${kw} 검색 실패:`, error);
         }
     }
 
-    console.log(`[NIA Crawler] 총 ${allItems.length}건 수집 완료`);
-    return allItems;
+    // 중복 제거
+    const seen = new Set<string>();
+    const unique = allItems.filter(item => {
+        if (seen.has(item.title)) return false;
+        seen.add(item.title);
+        return true;
+    });
+
+    console.log(`[NIA via Bizinfo] 총 ${unique.length}건 수집`);
+    return unique;
 }
 
 const niaAdapter: SourceAdapter = {
     sourceId: 'nia',
     sourceLabel: 'NIA',
-    isAvailable(): boolean { return true; },
-    async fetch(_filter: SearchFilter): Promise<BidItem[]> { return crawlNia(); },
+    isAvailable(): boolean { return !!BIZINFO_API_KEY; },
+    async fetch(_filter: SearchFilter): Promise<BidItem[]> { return fetchNiaFromBizinfo(); },
 };
 
 registerAdapter(niaAdapter);

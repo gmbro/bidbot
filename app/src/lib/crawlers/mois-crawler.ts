@@ -20,6 +20,9 @@ const MOIS_URLS = [
     'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006',
     // 훈령·예규·고시
     'https://www.mois.go.kr/frt/bbs/type001/commonSelectBoardList.do?bbsId=BBSMSTR_000000000016',
+    // AI/디지털 키워드 검색
+    'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006&searchCnd=0&searchWrd=AI',
+    'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardList.do?bbsId=BBSMSTR_000000000006&searchCnd=0&searchWrd=%EB%94%94%EC%A7%80%ED%84%B8',
 ];
 
 const MOIS_DETAIL_BASE = 'https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardArticle.do?bbsId=BBSMSTR_000000000006&nttId=';
