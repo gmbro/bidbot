@@ -2,6 +2,13 @@
 
 @import "tailwindcss";
 
+/* News scroll */
+.news-scroll::-webkit-scrollbar { display: none; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 :root {
   /* 메인 컬러 팔레트 */
   --primary: #3b82f6;

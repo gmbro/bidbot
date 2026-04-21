@@ -176,6 +176,10 @@ export default function HomePage() {
   const [fallbackItems, setFallbackItems] = useState<BidItem[]>([]);
   const [isFallback, setIsFallback] = useState(false);
 
+  // AI 뉴스 피드
+  const [newsItems, setNewsItems] = useState<{id:string;title:string;url:string;sourceLabel:string;date:string}[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -281,6 +285,18 @@ export default function HomePage() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate, category, aiOnly, page, keyword, activeSourceTab]);
+
+  // 뉴스 피드 로드 (최초 1회)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/news');
+        const data = await res.json();
+        if (data.success) setNewsItems(data.data);
+      } catch { /* ignore */ }
+      finally { setNewsLoading(false); }
+    })();
+  }, []);
 
   const handleSearch = () => {
     setPage(1);
@@ -399,6 +415,93 @@ export default function HomePage() {
           </h1>
         </div>
       </header>
+
+      {/* ═══ AI 뉴스 피드 ═══ */}
+      <section style={{
+        marginBottom: 20,
+        padding: '16px 0',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            📰 AI 산업 뉴스
+          </h2>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>AI타임스</span>
+        </div>
+        <div style={{
+          display: 'flex',
+          gap: 12,
+          overflowX: 'auto',
+          paddingBottom: 8,
+          scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch',
+        }} className="news-scroll">
+          {newsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{
+                minWidth: 260, maxWidth: 260, height: 90,
+                background: 'var(--bg-card)', borderRadius: 10,
+                border: '1px solid var(--border)',
+                padding: 14,
+                flexShrink: 0,
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}>
+                <div style={{ width: '80%', height: 14, background: 'var(--border)', borderRadius: 4, marginBottom: 8 }} />
+                <div style={{ width: '60%', height: 14, background: 'var(--border)', borderRadius: 4 }} />
+              </div>
+            ))
+          ) : newsItems.length === 0 ? (
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', padding: '12px 0' }}>뉴스를 불러오지 못했습니다</div>
+          ) : (
+            newsItems.map(news => (
+              <a
+                key={news.id}
+                href={news.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  minWidth: 260, maxWidth: 260,
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  textDecoration: 'none',
+                  flexShrink: 0,
+                  transition: 'all 0.2s',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'rgba(139, 92, 246, 0.4)';
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(139,92,246,0.1)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+                  (e.currentTarget as HTMLElement).style.transform = '';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '';
+                }}
+              >
+                <span style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  lineHeight: 1.4,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}>{news.title}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {news.sourceLabel}
+                </span>
+              </a>
+            ))
+          )}
+        </div>
+      </section>
 
       {/* ═══ 에러/데모 알림 ═══ */}
       {isDemo && (
