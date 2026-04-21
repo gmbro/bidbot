@@ -68,23 +68,40 @@ function parseDateInput(isoDate: string): string {
   return isoDate.replace(/-/g, '');
 }
 
-function getDaysLeftLabel(bidEndDt: string): { text: string; color: string } {
-  if (!bidEndDt) return { text: '기한 미정', color: 'var(--text-muted)' };
-  const cleaned = bidEndDt.replace(/[^0-9]/g, '');
-  if (cleaned.length < 8) return { text: '기한 미정', color: 'var(--text-muted)' };
-  const endDate = new Date(
-    parseInt(cleaned.slice(0, 4)),
-    parseInt(cleaned.slice(4, 6)) - 1,
-    parseInt(cleaned.slice(6, 8))
-  );
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const days = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  if (days < 0) return { text: '마감', color: '#ef4444' };
-  if (days === 0) return { text: 'D-Day', color: '#ef4444' };
-  if (days <= 3) return { text: `D-${days}`, color: '#f59e0b' };
-  if (days <= 7) return { text: `D-${days}`, color: '#3b82f6' };
-  return { text: `D-${days}`, color: 'var(--text-secondary)' };
+function formatDateShort(dt: string): string {
+  if (!dt) return '';
+  const c = dt.replace(/[^0-9]/g, '');
+  if (c.length < 8) return '';
+  return `${c.slice(4, 6)}.${c.slice(6, 8)}`;
+}
+
+function getDateDisplay(noticeDt: string, bidEndDt: string): { text: string; color: string } {
+  const notice = formatDateShort(noticeDt);
+  const end = formatDateShort(bidEndDt);
+
+  if (!notice && !end) return { text: '기한 미정', color: 'var(--text-muted)' };
+
+  // D-day 계산
+  if (bidEndDt) {
+    const cleaned = bidEndDt.replace(/[^0-9]/g, '');
+    if (cleaned.length >= 8) {
+      const endDate = new Date(
+        parseInt(cleaned.slice(0, 4)),
+        parseInt(cleaned.slice(4, 6)) - 1,
+        parseInt(cleaned.slice(6, 8))
+      );
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const days = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const dday = days < 0 ? '마감' : days === 0 ? 'D-Day' : `D-${days}`;
+      const color = days < 0 ? '#ef4444' : days <= 3 ? '#f59e0b' : days <= 7 ? '#3b82f6' : 'var(--text-secondary)';
+      const dateRange = notice ? `${notice}~${end}` : `~${end}`;
+      return { text: `${dateRange} (${dday})`, color };
+    }
+  }
+
+  // 공고일만 있는 경우
+  return { text: notice ? `${notice}~` : '기한 미정', color: 'var(--text-muted)' };
 }
 
 // ─── 메인 컴포넌트 ───
@@ -335,7 +352,7 @@ export default function HomePage() {
       });
 
       const data = await res.json();
-      if (!data.success) throw new Error(data.error);
+      if (!data.success) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
       setDraftContent(data.draft);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '작성 팁 생성에 실패했습니다';
@@ -591,7 +608,7 @@ export default function HomePage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {fallbackItems.map((item) => {
-                  const daysLeft = getDaysLeftLabel(item.bidEndDt);
+                  const daysLeft = getDateDisplay(item.noticeDt, item.bidEndDt);
                   const srcInfo = getSourceInfo(item.source);
                   return (
                     <div
@@ -680,7 +697,7 @@ export default function HomePage() {
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {items.map((item) => {
-              const daysLeft = getDaysLeftLabel(item.bidEndDt);
+              const daysLeft = getDateDisplay(item.noticeDt, item.bidEndDt);
               const srcInfo = getSourceInfo(item.source);
               return (
                 <div
